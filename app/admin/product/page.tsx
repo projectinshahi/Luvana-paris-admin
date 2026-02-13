@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { Plus } from "lucide-react";
 import AdminLayout from "@/components/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -46,7 +47,7 @@ export default function ProductListPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-semibold">Products</h2>
           <div>
-            <Link href="/admin/product/new"><Button>New Product</Button></Link>
+            <Link href="/admin/product/new"><Button><Plus className="mr-2 h-4 w-4" />New Product</Button></Link>
           </div>
         </div>
 

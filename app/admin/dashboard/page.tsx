@@ -5,6 +5,7 @@ import AdminLayout from "@/components/AdminLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { ShoppingCart, Users, Package, DollarSign } from "lucide-react";
 
 type OrderItem = { product?: string; productNameEnglish?: string; quantity?: number; price?: number; };
 type Order = { id: string; orderId?: string; customerName?: string; price?: number; discount?: number; shippingCharges?: number; paymentStatus?: string; status?: string; createdAt?: string; orderItem?: OrderItem[] };
@@ -56,21 +57,33 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-4 gap-4">
-          <Card className="p-4">
-            <div className="text-sm text-muted-foreground">Orders</div>
-            <div className="text-2xl font-semibold">{totals.ordersCount}</div>
+          <Card className="p-4 flex items-center gap-4">
+            <div className="p-2 bg-muted rounded-md"><ShoppingCart className="h-6 w-6" /></div>
+            <div>
+              <div className="text-sm text-muted-foreground">Orders</div>
+              <div className="text-2xl font-semibold">{totals.ordersCount}</div>
+            </div>
           </Card>
-          <Card className="p-4">
-            <div className="text-sm text-muted-foreground">Users</div>
-            <div className="text-2xl font-semibold">{totals.usersCount}</div>
+          <Card className="p-4 flex items-center gap-4">
+            <div className="p-2 bg-muted rounded-md"><Users className="h-6 w-6" /></div>
+            <div>
+              <div className="text-sm text-muted-foreground">Users</div>
+              <div className="text-2xl font-semibold">{totals.usersCount}</div>
+            </div>
           </Card>
-          <Card className="p-4">
-            <div className="text-sm text-muted-foreground">Products</div>
-            <div className="text-2xl font-semibold">{totals.productsCount}</div>
+          <Card className="p-4 flex items-center gap-4">
+            <div className="p-2 bg-muted rounded-md"><Package className="h-6 w-6" /></div>
+            <div>
+              <div className="text-sm text-muted-foreground">Products</div>
+              <div className="text-2xl font-semibold">{totals.productsCount}</div>
+            </div>
           </Card>
-          <Card className="p-4">
-            <div className="text-sm text-muted-foreground">Sales</div>
-            <div className="text-2xl font-semibold">{totals.sales}</div>
+          <Card className="p-4 flex items-center gap-4">
+            <div className="p-2 bg-muted rounded-md"><DollarSign className="h-6 w-6" /></div>
+            <div>
+              <div className="text-sm text-muted-foreground">Sales</div>
+              <div className="text-2xl font-semibold">{totals.sales}</div>
+            </div>
           </Card>
         </div>
 

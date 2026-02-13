@@ -5,6 +5,7 @@ import AdminLayout from "@/components/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import CouponForm from "@/components/coupon/CouponForm";
+import { Percent, CheckCircle, ShoppingCart, DollarSign, Plus } from "lucide-react";
 
 type Coupon = {
   id: string;
@@ -89,26 +90,38 @@ export default function CouponPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-semibold">Coupons</h2>
           <div>
-            <Button onClick={() => { setEditing(null); setOpen(true); }}>New Coupon</Button>
+            <Button onClick={() => { setEditing(null); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />New Coupon</Button>
           </div>
         </div>
 
         <div className="grid grid-cols-4 gap-4">
-          <Card className="p-4">
-            <div className="text-sm text-muted-foreground">Total Coupons</div>
-            <div className="text-2xl font-semibold">{totals.totalCoupons}</div>
+          <Card className="p-4 flex items-center gap-4">
+            <div className="p-2 bg-muted rounded-md"><Percent className="h-6 w-6" /></div>
+            <div>
+              <div className="text-sm text-muted-foreground">Total Coupons</div>
+              <div className="text-2xl font-semibold">{totals.totalCoupons}</div>
+            </div>
           </Card>
-          <Card className="p-4">
-            <div className="text-sm text-muted-foreground">Active Coupons</div>
-            <div className="text-2xl font-semibold">{totals.activeCoupons}</div>
+          <Card className="p-4 flex items-center gap-4">
+            <div className="p-2 bg-muted rounded-md"><CheckCircle className="h-6 w-6" /></div>
+            <div>
+              <div className="text-sm text-muted-foreground">Active Coupons</div>
+              <div className="text-2xl font-semibold">{totals.activeCoupons}</div>
+            </div>
           </Card>
-          <Card className="p-4">
-            <div className="text-sm text-muted-foreground">Total Usage</div>
-            <div className="text-2xl font-semibold">{totals.totalUsage}</div>
+          <Card className="p-4 flex items-center gap-4">
+            <div className="p-2 bg-muted rounded-md"><ShoppingCart className="h-6 w-6" /></div>
+            <div>
+              <div className="text-sm text-muted-foreground">Total Usage</div>
+              <div className="text-2xl font-semibold">{totals.totalUsage}</div>
+            </div>
           </Card>
-          <Card className="p-4">
-            <div className="text-sm text-muted-foreground">Total Discount Given</div>
-            <div className="text-2xl font-semibold">{totals.totalDiscount}</div>
+          <Card className="p-4 flex items-center gap-4">
+            <div className="p-2 bg-muted rounded-md"><DollarSign className="h-6 w-6" /></div>
+            <div>
+              <div className="text-sm text-muted-foreground">Total Discount Given</div>
+              <div className="text-2xl font-semibold">{totals.totalDiscount}</div>
+            </div>
           </Card>
         </div>
 
