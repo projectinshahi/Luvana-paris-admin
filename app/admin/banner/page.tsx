@@ -15,6 +15,7 @@ type Banner = {
   descriptionArabic?: string;
   imageUrlEnglish?: string;
   imageUrlArabic?: string;
+  sortOrder: number;
   status: "active" | "inactive";
 };
 
@@ -27,7 +28,11 @@ export default function BannerPage() {
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) setBanners(JSON.parse(raw));
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      parsed.sort((a: Banner, b: Banner) => a.sortOrder - b.sortOrder);
+      setBanners(parsed);
+    }
   }, []);
 
   useEffect(() => {
@@ -39,6 +44,7 @@ export default function BannerPage() {
       setBanners((s) => s.map((b) => (b.id === payload.id ? { ...b, ...payload } as Banner : b)));
     } else {
       const id = String(Date.now());
+      const maxOrder = banners.length > 0 ? Math.max(...banners.map(b => b.sortOrder)) + 1 : 1;
       setBanners((s) => [{
         id,
         name: payload.name || "",
@@ -48,6 +54,7 @@ export default function BannerPage() {
         descriptionArabic: payload.descriptionArabic || "",
         imageUrlEnglish: payload.imageUrlEnglish || "",
         imageUrlArabic: payload.imageUrlArabic || "",
+        sortOrder: maxOrder,
         status: payload.status || "active",
       }, ...s]);
     }
@@ -60,6 +67,36 @@ export default function BannerPage() {
 
   const toggleStatus = (id: string) => {
     setBanners((s) => s.map((b) => b.id === id ? { ...b, status: b.status === 'active' ? 'inactive' : 'active' } : b));
+  };
+
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+
+  const handleDragStart = (e: React.DragEvent<HTMLTableRowElement>, id: string) => {
+    setDraggedId(id);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLTableRowElement>) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLTableRowElement>, targetId: string) => {
+    e.preventDefault();
+    if (!draggedId || draggedId === targetId) return;
+
+    const draggedIdx = banners.findIndex(b => b.id === draggedId);
+    const targetIdx = banners.findIndex(b => b.id === targetId);
+    if (draggedIdx === -1 || targetIdx === -1) return;
+
+    const newBanners = [...banners];
+    const [draggedBanner] = newBanners.splice(draggedIdx, 1);
+    newBanners.splice(targetIdx, 0, draggedBanner);
+
+    // Recalculate sortOrder
+    const updated = newBanners.map((b, idx) => ({ ...b, sortOrder: idx + 1 }));
+    setBanners(updated);
+    setDraggedId(null);
   };
 
   return (
@@ -79,6 +116,7 @@ export default function BannerPage() {
             <table className="w-full text-left table-auto">
               <thead>
                 <tr className="text-sm text-muted-foreground">
+                  <th className="px-4 py-2">Order</th>
                   <th className="px-4 py-2">Name</th>
                   <th className="px-4 py-2">Title</th>
                   <th className="px-4 py-2">Image</th>
@@ -88,7 +126,17 @@ export default function BannerPage() {
               </thead>
               <tbody>
                 {banners.map((b) => (
-                  <tr key={b.id} className="border-t">
+                  <tr
+                    key={b.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, b.id)}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, b.id)}
+                    className={`border-t cursor-move transition-opacity ${
+                      draggedId === b.id ? 'opacity-50' : ''
+                    }`}
+                  >
+                    <td className="px-4 py-3 align-top text-sm text-muted-foreground font-medium">{b.sortOrder}</td>
                     <td className="px-4 py-3 align-top">
                       <div className="font-medium">{b.name || '-'}</div>
                     </td>

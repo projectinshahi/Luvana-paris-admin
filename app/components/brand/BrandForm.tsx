@@ -1,25 +1,23 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 
-type BannerPayload = {
+type BrandPayload = {
   id?: string;
-  name?: string;
-  titleEnglish: string;
-  titleArabic?: string;
+  nameEnglish: string;
+  nameArabic?: string;
   descriptionEnglish?: string;
   descriptionArabic?: string;
-  imageUrlEnglish?: string;
-  imageUrlArabic?: string;
-  sortOrder?: number;
+  logoUrlEnglish?: string;
+  logoUrlArabic?: string;
   status?: "active" | "inactive";
 };
 
-export default function BannerForm({
+export default function BrandForm({
   open,
   onOpenChange,
   onSave,
@@ -27,15 +25,15 @@ export default function BannerForm({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  onSave: (payload: BannerPayload) => Promise<void> | void;
-  initial?: BannerPayload | null;
+  onSave: (payload: BrandPayload) => Promise<void> | void;
+  initial?: BrandPayload | null;
 }) {
-  const [form, setForm] = useState<BannerPayload>({ titleEnglish: "", status: "active" });
+  const [form, setForm] = useState<BrandPayload>({ nameEnglish: "", status: "active" });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (initial) setForm(initial);
-    else setForm({ titleEnglish: "", status: "active" });
+    else setForm({ nameEnglish: "", status: "active" });
   }, [initial, open]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -44,13 +42,13 @@ export default function BannerForm({
   };
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, files } = e.target;
+    const { name, files } = e.target as HTMLInputElement;
     if (!files || files.length === 0) return;
     const file = files[0];
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
-      setForm((s) => ({ ...s, [name]: result } as BannerPayload));
+      setForm((s) => ({ ...s, [name]: result } as BrandPayload));
     };
     reader.readAsDataURL(file);
   };
@@ -69,23 +67,30 @@ export default function BannerForm({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{initial?.id ? "Edit Banner" : "Create Banner"}</DialogTitle>
+          <DialogTitle>{initial?.id ? "Edit Brand" : "Create Brand"}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3 mt-2">
           <div>
-            <label className="block text-sm text-muted-foreground mb-1">Name</label>
-            <Input name="name" value={form.name || ""} onChange={handleChange} />
+            <label className="block text-sm text-muted-foreground mb-1">Name (English)</label>
+            <Input name="nameEnglish" value={form.nameEnglish} onChange={handleChange} />
           </div>
 
           <div>
-            <label className="block text-sm text-muted-foreground mb-1">Title (English)</label>
-            <Input name="titleEnglish" value={form.titleEnglish} onChange={handleChange} />
+            <label className="block text-sm text-muted-foreground mb-1">Name (Arabic)</label>
+            <Input name="nameArabic" value={form.nameArabic || ""} onChange={handleChange} dir="rtl" lang="ar" className="text-right" />
           </div>
 
           <div>
-            <label className="block text-sm text-muted-foreground mb-1">Title (Arabic)</label>
-            <Input name="titleArabic" value={form.titleArabic || ""} onChange={handleChange} dir="rtl" lang="ar" className="text-right" />
+            <label className="block text-sm text-muted-foreground mb-1">Logo (English)</label>
+            <input type="file" name="logoUrlEnglish" accept="image/*" onChange={handleFile} className="w-full" />
+            {form.logoUrlEnglish && <img src={form.logoUrlEnglish} alt="preview" className="mt-2 h-24 w-24 object-cover rounded" />}
+          </div>
+
+          <div>
+            <label className="block text-sm text-muted-foreground mb-1">Logo (Arabic)</label>
+            <input type="file" name="logoUrlArabic" accept="image/*" onChange={handleFile} className="w-full" />
+            {form.logoUrlArabic && <img src={form.logoUrlArabic} alt="preview" className="mt-2 h-24 w-24 object-cover rounded" />}
           </div>
 
           <div>
@@ -96,18 +101,6 @@ export default function BannerForm({
           <div>
             <label className="block text-sm text-muted-foreground mb-1">Description (Arabic)</label>
             <Textarea name="descriptionArabic" value={form.descriptionArabic || ""} onChange={handleChange} dir="rtl" lang="ar" className="text-right" />
-          </div>
-
-          <div>
-            <label className="block text-sm text-muted-foreground mb-1">Image (English)</label>
-            <input type="file" name="imageUrlEnglish" accept="image/*" onChange={handleFile} className="w-full" />
-            {form.imageUrlEnglish && <img src={form.imageUrlEnglish} alt="preview" className="mt-2 h-28 w-48 object-cover rounded" />}
-          </div>
-
-          <div>
-            <label className="block text-sm text-muted-foreground mb-1">Image (Arabic)</label>
-            <input type="file" name="imageUrlArabic" accept="image/*" onChange={handleFile} className="w-full" />
-            {form.imageUrlArabic && <img src={form.imageUrlArabic} alt="preview" className="mt-2 h-28 w-48 object-cover rounded" />}
           </div>
 
           <div>

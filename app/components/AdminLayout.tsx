@@ -5,17 +5,20 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "./ui/button";
 import {
-  FileText,
   Users,
   Settings,
   LogOut,
   Library,
   LayoutDashboard,
   Signpost,
-  Film,
   ShieldCheck,
   ChevronDown,
   ChevronRight,
+  BadgePercent,
+  Percent,
+  Package,
+  Dice1,
+  ShoppingCart,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -66,11 +69,53 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         visible: true,//hasPermission("category")
       },
       { 
+        title: "Brand", 
+        icon: <Dice1 className="h-5 w-5" />, 
+        path: "/admin/brand",
+        permission: "brand",
+        visible: true,//hasPermission("brand")
+      },
+      {
+        title: "Customers",
+        icon: <Users className="h-5 w-5" />,
+        path: "/admin/customer",
+        permission: "customers",
+        visible: true,
+      },
+      { 
+        title: "Product", 
+        icon: <Package className="h-5 w-5" />, 
+        path: "/admin/product",
+        permission: "product",
+        visible: true,//hasPermission("product")
+      },
+      { 
         title: "Banner", 
         icon: <Signpost className="h-5 w-5" />, 
         path: "/admin/banner",
         permission: "banner",
         visible: true,//hasPermission("banner")
+      },
+      { 
+        title: "Promotion Strip", 
+        icon: <BadgePercent className="h-5 w-5" />, 
+        path: "/admin/promotion-strip",
+        permission: "promotion-strip",
+        visible: true,//hasPermission("promotion-strip")
+      },
+      { 
+        title: "Coupon", 
+        icon: <Percent className="h-5 w-5" />, 
+        path: "/admin/coupon",
+        permission: "coupon",
+        visible: true,//hasPermission("coupon")
+      },
+      { 
+        title: "Orders", 
+        icon: <ShoppingCart className="h-5 w-5" />, 
+        path: "/admin/order",
+        permission: "order",
+        visible: true,//hasPermission("order")
       },
     ];
 
