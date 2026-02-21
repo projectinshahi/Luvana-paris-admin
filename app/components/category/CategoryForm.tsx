@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 
 type CategoryPayload = {
-    id?: string;
+    _id?: string;
     nameEnglish: string;
     imageUrlEnglish?: string;
     nameArabic?: string;
@@ -67,7 +67,7 @@ export default function CategoryForm({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>{initial?.id ? "Edit Category" : "Create Category"}</DialogTitle>
+                    <DialogTitle>{initial?._id ? "Edit Category" : "Create Category"}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-3 mt-2">
                     <div>

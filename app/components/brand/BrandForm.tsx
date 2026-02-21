@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 
 type BrandPayload = {
-  id?: string;
+  _id?: string;
   nameEnglish: string;
   nameArabic?: string;
   descriptionEnglish?: string;
@@ -67,7 +67,7 @@ export default function BrandForm({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{initial?.id ? "Edit Brand" : "Create Brand"}</DialogTitle>
+          <DialogTitle>{initial?._id ? "Edit Brand" : "Create Brand"}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3 mt-2">

@@ -6,10 +6,9 @@ import { api } from '@/utils/api';
 
 interface User {
   id: string;
+  name: string;
   email: string;
-  username: string;
-  role: string;
-  permissions?: string[]; // Make this optional
+  role?: string;
 }
 
 interface LoginResponse {
@@ -73,28 +72,11 @@ const login = async (email: string, password: string): Promise<boolean> => {
   try {
     console.log('🔄 Attempting login for:', email);
     
-    // Try to call the API directly to see what's happening
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3008';
-    
-    const response = await fetch(`${API_URL}/admin-login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, password }),
-    });
-
-    const data = await response.json();
+    const data = await api.post('/admin/login', { email, password });
     console.log('📦 Raw response:', data);
-    console.log('📦 Response status:', response.status);
     
-    if (!response.ok) {
-      // Show the actual backend error message
-      throw new Error(data.message || data.error || 'Login failed');
-    }
-
     localStorage.setItem('token', data.token);
-    setUser(data.user);
+    setUser(data.admin);
 
     console.log('✅ Login successful');
     router.push('/admin');

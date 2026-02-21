@@ -18,7 +18,7 @@ interface AuthEndpoints {
     endpoints: {
       auth: {
           me: '/me',
-          login: '/admin-login'
+          login: '/admin/login'
       }
     }
   };

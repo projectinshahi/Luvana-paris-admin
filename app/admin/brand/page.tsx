@@ -1,14 +1,14 @@
-"use client";
-
+'use client';
 import React, { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import AdminLayout from "@/components/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import BrandForm from "@/components/brand/BrandForm";
+import { api } from "@/utils/api";
 
 type Brand = {
-  id: string;
+  _id: string;
   nameEnglish: string;
   nameArabic?: string;
   descriptionEnglish?: string;
@@ -16,49 +16,71 @@ type Brand = {
   logoUrlEnglish?: string;
   logoUrlArabic?: string;
   status: "active" | "inactive";
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
 };
 
 const STORAGE_KEY = "lp:brands";
 
 export default function BrandPage() {
   const [brands, setBrands] = useState<Brand[]>([]);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Brand | null>(null);
 
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) setBrands(JSON.parse(raw));
+    fetchBrands();
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(brands));
-  }, [brands]);
-
-  const handleSave = async (payload: Partial<Brand>) => {
-    if (payload.id) {
-      setBrands((s) => s.map((b) => (b.id === payload.id ? { ...b, ...payload } as Brand : b)));
-    } else {
-      const id = String(Date.now());
-      setBrands((s) => [{
-        id,
-        nameEnglish: payload.nameEnglish || "",
-        nameArabic: payload.nameArabic || "",
-        descriptionEnglish: payload.descriptionEnglish || "",
-        descriptionArabic: payload.descriptionArabic || "",
-        logoUrlEnglish: payload.logoUrlEnglish || "",
-        logoUrlArabic: payload.logoUrlArabic || "",
-        status: payload.status || "active",
-      }, ...s]);
+  const fetchBrands = async () => {
+    try {
+      const data = await api.get<Brand[]>('/admin/brand');
+      setBrands(data);
+    } catch (error) {
+      console.error('Failed to fetch brands:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDelete = (id: string) => {
-    if (!confirm("Delete this brand?")) return;
-    setBrands((s) => s.filter((b) => b.id !== id));
+  const handleSave = async (payload: any) => {
+    try {
+      if (editing) {
+        // Update
+        await api.put(`/admin/brand/${editing._id}`, payload);
+      } else {
+        // Create
+        await api.post('/admin/brand', payload);
+      }
+      await fetchBrands(); // Refresh list
+    } catch (error) {
+      console.error('Failed to save brand:', error);
+      throw error;
+    }
   };
 
-  const toggleStatus = (id: string) => {
-    setBrands((s) => s.map((b) => b.id === id ? { ...b, status: b.status === 'active' ? 'inactive' : 'active' } : b));
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this brand?")) return;
+    try {
+      await api.delete(`/admin/brand/${id}`);
+      await fetchBrands(); // Refresh list
+    } catch (error) {
+      console.error('Failed to delete brand:', error);
+    }
+  };
+
+  const toggleStatus = async (id: string) => {
+    const brand = brands.find(b => b._id === id);
+    if (!brand) return;
+    
+    const newStatus = brand.status === 'active' ? 'inactive' : 'active';
+    try {
+      await api.put(`/admin/brand/${id}`, { ...brand, status: newStatus });
+      await fetchBrands(); // Refresh list
+    } catch (error) {
+      console.error('Failed to update status:', error);
+    }
   };
 
   return (
@@ -72,7 +94,9 @@ export default function BrandPage() {
         </div>
 
         <Card className="p-4 overflow-auto">
-          {brands.length === 0 ? (
+          {loading ? (
+            <div className="py-12 text-center text-muted-foreground">Loading brands...</div>
+          ) : brands.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">No brands yet</div>
           ) : (
             <table className="w-full text-left table-auto">
@@ -86,7 +110,7 @@ export default function BrandPage() {
               </thead>
               <tbody>
                 {brands.map((b) => (
-                  <tr key={b.id} className="border-t">
+                  <tr key={b._id} className="border-t">
                     <td className="px-4 py-3 align-top">
                       <div className="font-medium">{b.nameEnglish}</div>
                       {b.nameArabic && <div className="text-sm text-muted-foreground">{b.nameArabic}</div>}
@@ -99,12 +123,12 @@ export default function BrandPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 align-top">
-                      <button className={`px-3 py-1 rounded text-sm font-medium ${b.status === 'active' ? 'bg-green-600 text-white' : 'bg-gray-200 text-muted-foreground'}`} onClick={() => toggleStatus(b.id)}>{b.status}</button>
+                      <button className={`px-3 py-1 rounded text-sm font-medium ${b.status === 'active' ? 'bg-green-600 text-white' : 'bg-gray-200 text-muted-foreground'}`} onClick={() => toggleStatus(b._id)}>{b.status}</button>
                     </td>
                     <td className="px-4 py-3 align-top">
                       <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" onClick={() => { setEditing(b); setOpen(true); }}>Edit</Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(b.id)}>Delete</Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDelete(b._id)}>Delete</Button>
                       </div>
                     </td>
                   </tr>
