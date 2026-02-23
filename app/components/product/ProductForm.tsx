@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { api } from "@/utils/api";
 
 type ProductPayload = {
-  id?: string;
+  _id?: string;
   category?: string;
   brand?: string;
   nameEnglish?: string;
@@ -15,32 +16,73 @@ type ProductPayload = {
   shortDescriptionEnglish?: string;
   shortDescriptionArabic?: string;
   status?: "active" | "inactive";
-  images?: string[];
+  description?: any[];
+  imageUrlEnglish?: any[];
+  imageUrlArabic?: any[];
 };
 
 const STORAGE_KEY = "lp:products";
 
 export default function ProductForm({ productId }: { productId?: string } = {}) {
   const router = useRouter();
-  const [form, setForm] = useState<ProductPayload>({ nameEnglish: "", nameArabic: "", shortDescriptionArabic: "", category: "", brand: "", status: "active", images: [] });
+  const [form, setForm] = useState<ProductPayload>({
+    nameEnglish: "",
+    nameArabic: "",
+    shortDescriptionEnglish: "",
+    shortDescriptionArabic: "",
+    category: "",
+    brand: "",
+    status: "active",
+    description: [],
+    imageUrlEnglish: [],
+    imageUrlArabic: [],
+  });
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(!!productId);
   const [categories, setCategories] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
 
   useEffect(() => {
-    if (!productId) return;
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const found = JSON.parse(raw).find((p: any) => p.id === productId);
-      if (found) setForm(found);
+    if (!productId) {
+      setLoading(false);
+      return;
     }
+    fetchProduct();
   }, [productId]);
 
+  const fetchProduct = async () => {
+    try {
+      const data = await api.get<any>(`/admin/product/${productId}`);
+      setForm(data);
+    } catch (error) {
+      console.error('Failed to fetch product:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const rawC = localStorage.getItem('lp:categories');
-    if (rawC) setCategories(JSON.parse(rawC));
-    const rawB = localStorage.getItem('lp:brands');
-    if (rawB) setBrands(JSON.parse(rawB));
+    const fetchCategories = async () => {
+      try {
+        const data = await api.get<any[]>('/admin/category');
+        setCategories(data || []);
+      } catch (error) {
+        console.error('Failed to fetch categories:', error);
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  useEffect(() => {
+    const fetchBrands = async () => {
+      try {
+        const data = await api.get<any[]>('/admin/brand');
+        setBrands(data || []);
+      } catch (error) {
+        console.error('Failed to fetch brands:', error);
+      }
+    };
+    fetchBrands();
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -54,25 +96,33 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
-      setForm((s) => ({ ...s, images: [...(s.images || []), result] }));
+      const fieldName = (e.target as HTMLInputElement).name as keyof ProductPayload;
+      setForm((s) => ({
+        ...s,
+        [fieldName]: [...((s[fieldName] as any[]) || []), { imageUrl: result }],
+      }));
     };
     reader.readAsDataURL(files[0]);
+  };
+
+  const removeImage = (field: 'imageUrlEnglish' | 'imageUrlArabic', idx: number) => {
+    setForm((s) => ({
+      ...s,
+      [field]: (s[field] || []).filter((_, i) => i !== idx),
+    }));
   };
 
   const submit = async () => {
     setSaving(true);
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      const all = raw ? JSON.parse(raw) : [];
       if (productId) {
-        const updated = all.map((p: any) => p.id === productId ? { ...p, ...form } : p);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        await api.put(`/admin/product/${productId}`, form);
       } else {
-        const id = String(Date.now());
-        const toSave = { id, ...form };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify([toSave, ...all]));
+        await api.post('/admin/product', form);
       }
       router.push('/admin/product');
+    } catch (error) {
+      console.error('Failed to save product:', error);
     } finally {
       setSaving(false);
     }
@@ -84,7 +134,7 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
         <label className="block text-sm text-muted-foreground mb-1">Category</label>
         <select name="category" value={form.category || ''} onChange={handleChange} className="w-full rounded-md border px-3 py-2">
           <option value="">-- Select category --</option>
-          {categories.map((c) => (<option key={c.id} value={c.id}>{c.nameEnglish}</option>))}
+          {categories.map((c) => (<option key={c._id} value={c._id}>{c.nameEnglish}</option>))}
         </select>
       </div>
 
@@ -92,7 +142,7 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
         <label className="block text-sm text-muted-foreground mb-1">Brand</label>
         <select name="brand" value={form.brand || ''} onChange={handleChange} className="w-full rounded-md border px-3 py-2">
           <option value="">-- Select brand --</option>
-          {brands.map((b) => (<option key={b.id} value={b.id}>{b.nameEnglish}</option>))}
+          {brands.map((b) => (<option key={b._id} value={b._id}>{b.nameEnglish}</option>))}
         </select>
       </div>
 
@@ -117,10 +167,28 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
       </div>
 
       <div>
-        <label className="block text-sm text-muted-foreground mb-1">Images</label>
-        <input type="file" accept="image/*" onChange={handleFile} />
+        <label className="block text-sm text-muted-foreground mb-1">Images (English)</label>
+        <input type="file" name="imageUrlEnglish" accept="image/*" onChange={handleFile} />
         <div className="flex gap-2 mt-2">
-          {(form.images || []).map((src, idx) => (<img key={idx} src={src} className="h-20 w-20 object-cover rounded" alt="preview"/>))}
+          {(form.imageUrlEnglish || []).map((img, idx) => (
+            <div key={idx} className="relative">
+              <img src={img.imageUrl || img} className="h-20 w-20 object-cover rounded" alt="preview" />
+              <button type="button" onClick={() => removeImage('imageUrlEnglish', idx)} className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">×</button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm text-muted-foreground mb-1">Images (Arabic)</label>
+        <input type="file" name="imageUrlArabic" accept="image/*" onChange={handleFile} />
+        <div className="flex gap-2 mt-2">
+          {(form.imageUrlArabic || []).map((img, idx) => (
+            <div key={idx} className="relative">
+              <img src={img.imageUrl || img} className="h-20 w-20 object-cover rounded" alt="preview" />
+              <button type="button" onClick={() => removeImage('imageUrlArabic', idx)} className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">×</button>
+            </div>
+          ))}
         </div>
       </div>
 

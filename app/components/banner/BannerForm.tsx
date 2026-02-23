@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 
 type BannerPayload = {
-  id?: string;
+  _id?: string;
   name?: string;
   titleEnglish: string;
   titleArabic?: string;
@@ -69,7 +69,7 @@ export default function BannerForm({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{initial?.id ? "Edit Banner" : "Create Banner"}</DialogTitle>
+          <DialogTitle>{initial?._id ? "Edit Banner" : "Create Banner"}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3 mt-2">

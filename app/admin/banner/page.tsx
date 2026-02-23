@@ -6,9 +6,10 @@ import AdminLayout from "@/components/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import BannerForm from "@/components/banner/BannerForm";
+import { api } from "@/utils/api";
 
 type Banner = {
-  id: string;
+  _id: string;
   name?: string;
   titleEnglish: string;
   titleArabic?: string;
@@ -18,56 +19,73 @@ type Banner = {
   imageUrlArabic?: string;
   sortOrder: number;
   status: "active" | "inactive";
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
 };
 
 const STORAGE_KEY = "lp:banners";
 
 export default function BannerPage() {
   const [banners, setBanners] = useState<Banner[]>([]);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Banner | null>(null);
 
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      parsed.sort((a: Banner, b: Banner) => a.sortOrder - b.sortOrder);
-      setBanners(parsed);
-    }
+    fetchBanners();
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(banners));
-  }, [banners]);
-
-  const handleSave = async (payload: Partial<Banner>) => {
-    if (payload.id) {
-      setBanners((s) => s.map((b) => (b.id === payload.id ? { ...b, ...payload } as Banner : b)));
-    } else {
-      const id = String(Date.now());
-      const maxOrder = banners.length > 0 ? Math.max(...banners.map(b => b.sortOrder)) + 1 : 1;
-      setBanners((s) => [{
-        id,
-        name: payload.name || "",
-        titleEnglish: payload.titleEnglish || "",
-        titleArabic: payload.titleArabic || "",
-        descriptionEnglish: payload.descriptionEnglish || "",
-        descriptionArabic: payload.descriptionArabic || "",
-        imageUrlEnglish: payload.imageUrlEnglish || "",
-        imageUrlArabic: payload.imageUrlArabic || "",
-        sortOrder: maxOrder,
-        status: payload.status || "active",
-      }, ...s]);
+  const fetchBanners = async () => {
+    try {
+      const data = await api.get<Banner[]>('/admin/banner');
+      const sorted = data.sort((a, b) => a.sortOrder - b.sortOrder);
+      setBanners(sorted);
+    } catch (error) {
+      console.error('Failed to fetch banners:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDelete = (id: string) => {
-    if (!confirm("Delete this banner?")) return;
-    setBanners((s) => s.filter((b) => b.id !== id));
+  const handleSave = async (payload: any) => {
+    try {
+      if (editing) {
+        // Update
+        await api.put(`/admin/banner/${editing._id}`, payload);
+      } else {
+        // Create
+        const maxOrder = banners.length > 0 ? Math.max(...banners.map(b => b.sortOrder)) + 1 : 1;
+        await api.post('/admin/banner', { ...payload, sortOrder: maxOrder });
+      }
+      await fetchBanners(); // Refresh list
+    } catch (error) {
+      console.error('Failed to save banner:', error);
+      throw error;
+    }
   };
 
-  const toggleStatus = (id: string) => {
-    setBanners((s) => s.map((b) => b.id === id ? { ...b, status: b.status === 'active' ? 'inactive' : 'active' } : b));
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this banner?")) return;
+    try {
+      await api.delete(`/admin/banner/${id}`);
+      await fetchBanners(); // Refresh list
+    } catch (error) {
+      console.error('Failed to delete banner:', error);
+    }
+  };
+
+  const toggleStatus = async (id: string) => {
+    const banner = banners.find(b => b._id === id);
+    if (!banner) return;
+    
+    const newStatus = banner.status === 'active' ? 'inactive' : 'active';
+    try {
+      await api.put(`/admin/banner/${id}`, { ...banner, status: newStatus });
+      await fetchBanners(); // Refresh list
+    } catch (error) {
+      console.error('Failed to update status:', error);
+    }
   };
 
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -82,21 +100,35 @@ export default function BannerPage() {
     e.dataTransfer.dropEffect = "move";
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLTableRowElement>, targetId: string) => {
+  const handleDrop = async (e: React.DragEvent<HTMLTableRowElement>, targetId: string) => {
     e.preventDefault();
     if (!draggedId || draggedId === targetId) return;
 
-    const draggedIdx = banners.findIndex(b => b.id === draggedId);
-    const targetIdx = banners.findIndex(b => b.id === targetId);
+    const draggedIdx = banners.findIndex(b => b._id === draggedId);
+    const targetIdx = banners.findIndex(b => b._id === targetId);
     if (draggedIdx === -1 || targetIdx === -1) return;
 
     const newBanners = [...banners];
     const [draggedBanner] = newBanners.splice(draggedIdx, 1);
     newBanners.splice(targetIdx, 0, draggedBanner);
 
-    // Recalculate sortOrder
-    const updated = newBanners.map((b, idx) => ({ ...b, sortOrder: idx + 1 }));
-    setBanners(updated);
+    // Update sortOrder for all items
+    const updatedBanners = newBanners.map((b, idx) => ({ ...b, sortOrder: idx + 1 }));
+    
+    // Update local state immediately for better UX
+    setBanners(updatedBanners);
+    
+    // Update all items on the server
+    try {
+      await Promise.all(updatedBanners.map(b => 
+        api.put(`/admin/banner/${b._id}`, { sortOrder: b.sortOrder })
+      ));
+    } catch (error) {
+      console.error('Failed to update sort order:', error);
+      // Revert on error
+      await fetchBanners();
+    }
+    
     setDraggedId(null);
   };
 
@@ -111,7 +143,9 @@ export default function BannerPage() {
         </div>
 
         <Card className="p-4 overflow-auto">
-          {banners.length === 0 ? (
+          {loading ? (
+            <div className="py-12 text-center text-muted-foreground">Loading banners...</div>
+          ) : banners.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">No banners yet</div>
           ) : (
             <table className="w-full text-left table-auto">
@@ -128,13 +162,13 @@ export default function BannerPage() {
               <tbody>
                 {banners.map((b) => (
                   <tr
-                    key={b.id}
+                    key={b._id}
                     draggable
-                    onDragStart={(e) => handleDragStart(e, b.id)}
+                    onDragStart={(e) => handleDragStart(e, b._id)}
                     onDragOver={handleDragOver}
-                    onDrop={(e) => handleDrop(e, b.id)}
+                    onDrop={(e) => handleDrop(e, b._id)}
                     className={`border-t cursor-move transition-opacity ${
-                      draggedId === b.id ? 'opacity-50' : ''
+                      draggedId === b._id ? 'opacity-50' : ''
                     }`}
                   >
                     <td className="px-4 py-3 align-top text-sm text-muted-foreground font-medium">{b.sortOrder}</td>
@@ -155,7 +189,7 @@ export default function BannerPage() {
                     <td className="px-4 py-3 align-top">
                       <button
                         className={`px-3 py-1 rounded text-sm font-medium ${b.status === 'active' ? 'bg-green-600 text-white' : 'bg-gray-200 text-muted-foreground'}`}
-                        onClick={() => toggleStatus(b.id)}
+                        onClick={() => toggleStatus(b._id)}
                       >
                         {b.status}
                       </button>
@@ -163,7 +197,7 @@ export default function BannerPage() {
                     <td className="px-4 py-3 align-top">
                       <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" onClick={() => { setEditing(b); setOpen(true); }}>Edit</Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(b.id)}>Delete</Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDelete(b._id)}>Delete</Button>
                       </div>
                     </td>
                   </tr>

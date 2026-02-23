@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 
 type PromotionPayload = {
-  id?: string;
+  _id?: string;
   name?: string;
   contentEnglish: string;
   contentArabic?: string;
@@ -53,7 +53,7 @@ export default function PromotionForm({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{initial?.id ? "Edit Promotion" : "Create Promotion"}</DialogTitle>
+          <DialogTitle>{initial?._id ? "Edit Promotion" : "Create Promotion"}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3 mt-2">

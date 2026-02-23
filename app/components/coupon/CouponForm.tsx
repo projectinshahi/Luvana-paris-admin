@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 type CouponPayload = {
-  id?: string;
+  _id?: string;
   name?: string;
   code?: string;
   discount?: number;
@@ -58,7 +58,7 @@ export default function CouponForm({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{initial?.id ? "Edit Coupon" : "Create Coupon"}</DialogTitle>
+          <DialogTitle>{initial?._id ? "Edit Coupon" : "Create Coupon"}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3 mt-2">

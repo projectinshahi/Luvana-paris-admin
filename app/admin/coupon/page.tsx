@@ -6,22 +6,27 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import CouponForm from "@/components/coupon/CouponForm";
 import { Percent, CheckCircle, ShoppingCart, DollarSign, Plus } from "lucide-react";
+import { api } from "@/utils/api";
 
 type Coupon = {
-  id: string;
+  _id: string;
   name: string;
   code: string;
   discount: number;
   usage: number;
   minimumPurchase?: number;
-  validity?: string; // ISO date
+  validity?: string;
   status: "active" | "inactive";
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
 };
 
 const STORAGE_KEY = "lp:coupons";
 
 export default function CouponPage() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Coupon | null>(null);
 
@@ -29,42 +34,57 @@ export default function CouponPage() {
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
 
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Coupon[];
-      setCoupons(parsed.sort((a, b) => a.name.localeCompare(b.name)));
-    }
+    fetchCoupons();
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(coupons));
-  }, [coupons]);
-
-  const handleSave = async (payload: Partial<Coupon>) => {
-    if (payload.id) {
-      setCoupons((s) => s.map((c) => (c.id === payload.id ? ({ ...c, ...payload } as Coupon) : c)));
-    } else {
-      const id = String(Date.now());
-      setCoupons((s) => [{
-        id,
-        name: payload.name || "",
-        code: payload.code || "",
-        discount: Number(payload.discount || 0),
-        usage: Number(payload.usage || 0),
-        minimumPurchase: Number(payload.minimumPurchase || 0),
-        validity: payload.validity || undefined,
-        status: (payload.status as any) || "active",
-      }, ...s]);
+  const fetchCoupons = async () => {
+    try {
+      const data = await api.get<Coupon[]>('/admin/coupon');
+      setCoupons(data);
+    } catch (error) {
+      console.error('Failed to fetch coupons:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDelete = (id: string) => {
-    if (!confirm("Delete this coupon?")) return;
-    setCoupons((s) => s.filter((c) => c.id !== id));
+  const handleSave = async (payload: any) => {
+    try {
+      if (editing) {
+        // Update
+        await api.put(`/admin/coupon/${editing._id}`, payload);
+      } else {
+        // Create
+        await api.post('/admin/coupon', payload);
+      }
+      await fetchCoupons(); // Refresh list
+    } catch (error) {
+      console.error('Failed to save coupon:', error);
+      throw error;
+    }
   };
 
-  const toggleStatus = (id: string) => {
-    setCoupons((s) => s.map((c) => c.id === id ? { ...c, status: c.status === 'active' ? 'inactive' : 'active' } : c));
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this coupon?")) return;
+    try {
+      await api.delete(`/admin/coupon/${id}`);
+      await fetchCoupons(); // Refresh list
+    } catch (error) {
+      console.error('Failed to delete coupon:', error);
+    }
+  };
+
+  const toggleStatus = async (id: string) => {
+    const coupon = coupons.find(c => c._id === id);
+    if (!coupon) return;
+    
+    const newStatus = coupon.status === 'active' ? 'inactive' : 'active';
+    try {
+      await api.put(`/admin/coupon/${id}`, { ...coupon, status: newStatus });
+      await fetchCoupons(); // Refresh list
+    } catch (error) {
+      console.error('Failed to update status:', error);
+    }
   };
 
   const filtered = useMemo(() => {
@@ -135,7 +155,9 @@ export default function CouponPage() {
             </select>
           </div>
 
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="py-12 text-center text-muted-foreground">Loading coupons...</div>
+          ) : filtered.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">No coupons</div>
           ) : (
             <table className="w-full text-left table-auto">
@@ -153,7 +175,7 @@ export default function CouponPage() {
               </thead>
               <tbody>
                 {filtered.map((c) => (
-                  <tr key={c.id} className="border-t">
+                  <tr key={c._id} className="border-t">
                     <td className="px-4 py-3 align-top font-medium">{c.name}</td>
                     <td className="px-4 py-3 align-top">{c.code}</td>
                     <td className="px-4 py-3 align-top">{c.discount}</td>
@@ -163,7 +185,7 @@ export default function CouponPage() {
                     <td className="px-4 py-3 align-top">
                       <button
                         className={`px-3 py-1 rounded text-sm font-medium ${c.status === 'active' ? 'bg-green-600 text-white' : 'bg-gray-200 text-muted-foreground'}`}
-                        onClick={() => toggleStatus(c.id)}
+                        onClick={() => toggleStatus(c._id)}
                       >
                         {c.status}
                       </button>
@@ -171,7 +193,7 @@ export default function CouponPage() {
                     <td className="px-4 py-3 align-top">
                       <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" onClick={() => { setEditing(c); setOpen(true); }}>Edit</Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(c.id)}>Delete</Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDelete(c._id)}>Delete</Button>
                       </div>
                     </td>
                   </tr>

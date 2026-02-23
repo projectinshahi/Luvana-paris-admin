@@ -6,39 +6,64 @@ import AdminLayout from "@/components/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import Link from "next/link";
+import { api } from "@/utils/api";
 
 type Product = {
-  id: string;
-  category?: string;
-  brand?: string;
+  _id: string;
+  category?: { _id: string; nameEnglish: string; nameArabic?: string };
+  brand?: { _id: string; nameEnglish: string; nameArabic?: string };
   nameEnglish: string;
   nameArabic?: string;
   shortDescriptionEnglish?: string;
   shortDescriptionArabic?: string;
   status: "active" | "inactive";
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
 };
 
 const STORAGE_KEY = "lp:products";
 
 export default function ProductListPage() {
   const [items, setItems] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) setItems(JSON.parse(raw));
+    fetchProducts();
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  }, [items]);
-
-  const handleDelete = (id: string) => {
-    if (!confirm("Delete product?")) return;
-    setItems((s) => s.filter((p) => p.id !== id));
+  const fetchProducts = async () => {
+    try {
+      const data = await api.get<Product[]>('/admin/product');
+      setItems(data);
+    } catch (error) {
+      console.error('Failed to fetch products:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const toggleStatus = (id: string) => {
-    setItems((s) => s.map((p) => p.id === id ? { ...p, status: p.status === 'active' ? 'inactive' : 'active' } : p));
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete product?")) return;
+    try {
+      await api.delete(`/admin/product/${id}`);
+      await fetchProducts();
+    } catch (error) {
+      console.error('Failed to delete product:', error);
+    }
+  };
+
+  const toggleStatus = async (id: string) => {
+    const product = items.find(p => p._id === id);
+    if (!product) return;
+    
+    const newStatus = product.status === 'active' ? 'inactive' : 'active';
+    try {
+      await api.put(`/admin/product/${id}`, { ...product, status: newStatus });
+      await fetchProducts();
+    } catch (error) {
+      console.error('Failed to update status:', error);
+    }
   };
 
   return (
@@ -52,7 +77,9 @@ export default function ProductListPage() {
         </div>
 
         <Card className="p-4">
-          {items.length === 0 ? (
+          {loading ? (
+            <div className="py-12 text-center text-muted-foreground">Loading products...</div>
+          ) : items.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">No products</div>
           ) : (
             <table className="w-full text-left table-auto">
@@ -67,18 +94,18 @@ export default function ProductListPage() {
               </thead>
               <tbody>
                 {items.map((p) => (
-                  <tr key={p.id} className="border-t">
+                  <tr key={p._id} className="border-t">
                     <td className="px-4 py-3 align-top font-medium">{p.nameEnglish}</td>
-                    <td className="px-4 py-3 align-top">{p.category || '-'}</td>
-                    <td className="px-4 py-3 align-top">{p.brand || '-'}</td>
+                    <td className="px-4 py-3 align-top">{p.category?.nameEnglish || '-'}</td>
+                    <td className="px-4 py-3 align-top">{p.brand?.nameEnglish || '-'}</td>
                     <td className="px-4 py-3 align-top">
-                      <button className={`px-3 py-1 rounded text-sm font-medium ${p.status === 'active' ? 'bg-green-600 text-white' : 'bg-gray-200 text-muted-foreground'}`} onClick={() => toggleStatus(p.id)}>{p.status}</button>
+                      <button className={`px-3 py-1 rounded text-sm font-medium ${p.status === 'active' ? 'bg-green-600 text-white' : 'bg-gray-200 text-muted-foreground'}`} onClick={() => toggleStatus(p._id)}>{p.status}</button>
                     </td>
                     <td className="px-4 py-3 align-top">
                       <div className="flex items-center gap-2">
-                        <Link href={`/admin/product/${p.id}/edit`}><Button variant="outline" size="sm">Edit</Button></Link>
-                        <Link href={`/admin/product/${p.id}`}><Button variant="ghost" size="sm">Variants</Button></Link>
-                        <Button variant="destructive" size="sm" onClick={() => handleDelete(p.id)}>Delete</Button>
+                        <Link href={`/admin/product/${p._id}/edit`}><Button variant="outline" size="sm">Edit</Button></Link>
+                        <Link href={`/admin/product/${p._id}`}><Button variant="ghost" size="sm">Variants</Button></Link>
+                        <Button variant="destructive" size="sm" onClick={() => handleDelete(p._id)}>Delete</Button>
                       </div>
                     </td>
                   </tr>
