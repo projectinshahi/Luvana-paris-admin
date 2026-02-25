@@ -15,6 +15,8 @@ type ProductPayload = {
   nameArabic?: string;
   shortDescriptionEnglish?: string;
   shortDescriptionArabic?: string;
+  isFeatured?: boolean;
+  isNew?: boolean;
   status?: "active" | "inactive";
   description?: any[];
   imageUrlEnglish?: any[];
@@ -32,6 +34,8 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
     shortDescriptionArabic: "",
     category: "",
     brand: "",
+    isFeatured: false,
+    isNew: false,
     status: "active",
     description: [],
     imageUrlEnglish: [],
@@ -88,6 +92,11 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target as HTMLInputElement;
     setForm((s) => ({ ...s, [name]: value }));
+  };
+
+  const handleCheckbox = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, checked } = e.target;
+    setForm((s) => ({ ...s, [name]: checked }));
   };
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -164,6 +173,27 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
       <div>
         <label className="block text-sm text-muted-foreground mb-1">Short Description (Arabic)</label>
         <Textarea name="shortDescriptionArabic" value={form.shortDescriptionArabic || ''} onChange={handleChange} dir="rtl" lang="ar" className="text-right" />
+      </div>
+
+      <div className="flex items-center gap-6">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            name="isFeatured"
+            checked={!!form.isFeatured}
+            onChange={handleCheckbox}
+          />
+          Featured
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            name="isNew"
+            checked={!!form.isNew}
+            onChange={handleCheckbox}
+          />
+          New Arrival
+        </label>
       </div>
 
       <div>

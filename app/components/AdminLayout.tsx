@@ -103,13 +103,13 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         permission: "promotion-strip",
         visible: true,//hasPermission("promotion-strip")
       },
-      { 
-        title: "Coupon", 
-        icon: <Percent className="h-5 w-5" />, 
-        path: "/admin/coupon",
-        permission: "coupon",
-        visible: true,//hasPermission("coupon")
-      },
+      // { 
+      //   title: "Coupon", 
+      //   icon: <Percent className="h-5 w-5" />, 
+      //   path: "/admin/coupon",
+      //   permission: "coupon",
+      //   visible: true,//hasPermission("coupon")
+      // },
       { 
         title: "Orders", 
         icon: <ShoppingCart className="h-5 w-5" />, 

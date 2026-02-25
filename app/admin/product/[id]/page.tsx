@@ -7,12 +7,10 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { api } from "@/utils/api";
 
 type Product = { id: string; nameEnglish: string };
 type Variant = { id: string; product: string; nameEnglish: string; price?: number; stock?: number; status?: string };
-
-const PRODUCTS_KEY = "lp:products";
-const VARIANTS_KEY = "lp:productVariants";
 
 export default function ProductDetailPage() {
   const params = useParams() as any;
@@ -22,26 +20,47 @@ export default function ProductDetailPage() {
 
   useEffect(() => {
     if (!id) return;
-    const raw = localStorage.getItem(PRODUCTS_KEY);
-    if (raw) {
-      const found = JSON.parse(raw).find((p: any) => p.id === id);
-      if (found) setProduct(found);
-    }
-
-    const rawV = localStorage.getItem(VARIANTS_KEY);
-    if (rawV) {
-      const all = JSON.parse(rawV) as Variant[];
-      setVariants(all.filter((v) => v.product === id));
-    }
+    fetchProduct();
+    fetchVariants();
   }, [id]);
 
-  const handleDelete = (vid: string) => {
+  const fetchProduct = async () => {
+    try {
+      const data = await api.get<any>(`/admin/product/${id}`);
+      const p = data.product || data;
+      setProduct({ id: p._id, nameEnglish: p.nameEnglish });
+    } catch (error) {
+      console.error("Failed to fetch product:", error);
+    }
+  };
+
+  const fetchVariants = async () => {
+    try {
+      const data = await api.get<any>(`/admin/product-variant/product/${id}`);
+      const list = data.variants || data.list || data || [];
+      const mapped = (Array.isArray(list) ? list : []).map((v: any) => ({
+        id: v._id,
+        product: typeof v.product === "string" ? v.product : v.product?._id,
+        nameEnglish: v.nameEnglish,
+        price: v.price,
+        stock: v.stock,
+        status: v.status,
+      })) as Variant[];
+      setVariants(mapped);
+    } catch (error) {
+      console.error("Failed to fetch variants:", error);
+      setVariants([]);
+    }
+  };
+
+  const handleDelete = async (vid: string) => {
     if (!confirm('Delete variant?')) return;
-    const rawV = localStorage.getItem(VARIANTS_KEY);
-    if (!rawV) return;
-    const all = JSON.parse(rawV).filter((v: any) => v.id !== vid);
-    localStorage.setItem(VARIANTS_KEY, JSON.stringify(all));
-    setVariants(all.filter((v: any) => v.product === id));
+    try {
+      await api.delete(`/admin/product/${id}/variant/${vid}`);
+      await fetchVariants();
+    } catch (error) {
+      console.error("Failed to delete variant:", error);
+    }
   };
 
   return (

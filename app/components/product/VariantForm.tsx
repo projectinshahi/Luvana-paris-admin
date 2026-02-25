@@ -4,36 +4,78 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { api } from "@/utils/api";
 
 type VariantPayload = {
   id?: string;
   product?: string;
   nameEnglish?: string;
   nameArabic?: string;
-  shortDescriptionEnglish?: string;
-  shortDescriptionArabic?: string;
   color?: string;
   stock?: number;
   price?: number;
   mrp?: number;
-  status?: "active" | "inactive";
+  imageUrlEnglish?: Array<{ imageUrl: string }>;
+  imageUrlArabic?: Array<{ imageUrl: string }>;
 };
-
-const VARIANTS_KEY = "lp:productVariants";
 
 export default function VariantForm({ productId, variantId }: { productId?: string; variantId?: string } = {}) {
   const router = useRouter();
-  const [form, setForm] = useState<VariantPayload>({ nameEnglish: '', price: 0, stock: 0, status: 'active', product: productId });
+  const [form, setForm] = useState<VariantPayload>({ nameEnglish: '', price: 0, stock: 0, product: productId });
+  const [existingImageUrlEnglish, setExistingImageUrlEnglish] = useState<string[]>([]);
+  const [existingImageUrlArabic, setExistingImageUrlArabic] = useState<string[]>([]);
+  const [imageFilesEnglish, setImageFilesEnglish] = useState<File[]>([]);
+  const [imageFilesArabic, setImageFilesArabic] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!variantId) return;
-    const raw = localStorage.getItem(VARIANTS_KEY);
-    if (raw) {
-      const found = JSON.parse(raw).find((v: any) => v.id === variantId);
-      if (found) setForm(found);
+    if (!variantId || !productId) return;
+    fetchVariant();
+  }, [variantId, productId]);
+
+  const fetchVariant = async () => {
+    try {
+      const data = await api.get<any>(`/admin/product-variant/${variantId}`);
+      const v = data.variant || data;
+      setForm({
+        id: v._id,
+        product: v.product,
+        nameEnglish: v.nameEnglish,
+        nameArabic: v.nameArabic,
+        color: v.color,
+        stock: v.stock,
+        price: v.price,
+        mrp: v.mrp,
+      });
+      setExistingImageUrlEnglish((v.imageUrlEnglish || []).map((img: any) => img.imageUrl || "").filter(Boolean));
+      setExistingImageUrlArabic((v.imageUrlArabic || []).map((img: any) => img.imageUrl || "").filter(Boolean));
+    } catch (error) {
+      console.error("Failed to fetch variant:", error);
     }
-  }, [variantId]);
+  };
+
+  const uploadFiles = async (files: File[]): Promise<string[]> => {
+    if (files.length === 0) return [];
+    const endpoint = process.env.NEXT_PUBLIC_UPLOAD_URL;
+    if (!endpoint) {
+      throw new Error("Upload endpoint is not configured");
+    }
+
+    const formData = new FormData();
+    files.forEach((file) => formData.append("files", file));
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to upload files");
+    }
+
+    const data = await response.json();
+    return data.urls || data.imageUrls || [];
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -47,19 +89,39 @@ export default function VariantForm({ productId, variantId }: { productId?: stri
   const submit = async () => {
     setSaving(true);
     try {
-      const raw = localStorage.getItem(VARIANTS_KEY);
-      const all = raw ? JSON.parse(raw) : [];
+      const uploadedEnglish = await uploadFiles(imageFilesEnglish);
+      const uploadedArabic = await uploadFiles(imageFilesArabic);
+      const finalEnglish = existingImageUrlEnglish.concat(uploadedEnglish);
+      const finalArabic = existingImageUrlArabic.concat(uploadedArabic);
+
+      const payload: VariantPayload = {
+        product: productId,
+        nameEnglish: form.nameEnglish,
+        nameArabic: form.nameArabic,
+        color: form.color,
+        stock: form.stock,
+        price: form.price,
+        mrp: form.mrp,
+        imageUrlEnglish: finalEnglish.map((url) => ({ imageUrl: url })),
+        imageUrlArabic: finalArabic.map((url) => ({ imageUrl: url })),
+      };
+
       if (variantId) {
-        const updated = all.map((v: any) => v.id === variantId ? { ...v, ...form } : v);
-        localStorage.setItem(VARIANTS_KEY, JSON.stringify(updated));
+        await api.put(`/admin/product-variant/${variantId}`, payload);
       } else {
-        const id = String(Date.now());
-        const toSave = { id, product: productId, ...form };
-        localStorage.setItem(VARIANTS_KEY, JSON.stringify([toSave, ...all]));
+        await api.post(`/admin/product-variant`, payload);
       }
       router.push(`/admin/product/${productId}`);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const removeExistingImage = (type: "en" | "ar", idx: number) => {
+    if (type === "en") {
+      setExistingImageUrlEnglish((prev) => prev.filter((_, i) => i !== idx));
+    } else {
+      setExistingImageUrlArabic((prev) => prev.filter((_, i) => i !== idx));
     }
   };
 
@@ -68,6 +130,11 @@ export default function VariantForm({ productId, variantId }: { productId?: stri
       <div>
         <label className="block text-sm text-muted-foreground mb-1">Name (English)</label>
         <Input name="nameEnglish" value={form.nameEnglish || ''} onChange={handleChange} />
+      </div>
+
+      <div>
+        <label className="block text-sm text-muted-foreground mb-1">Name (Arabic)</label>
+        <Input name="nameArabic" value={form.nameArabic || ''} onChange={handleChange} />
       </div>
 
       <div>
@@ -88,6 +155,56 @@ export default function VariantForm({ productId, variantId }: { productId?: stri
           <label className="block text-sm text-muted-foreground mb-1">Stock</label>
           <Input name="stock" type="number" value={String(form.stock ?? 0)} onChange={handleChange} />
         </div>
+      </div>
+
+      <div>
+        <label className="block text-sm text-muted-foreground mb-2">Images (English)</label>
+        {existingImageUrlEnglish.length > 0 && (
+          <div className="mb-3 space-y-2">
+            {existingImageUrlEnglish.map((url, idx) => (
+              <div key={`existing-en-${idx}`} className="flex items-center justify-between gap-2 text-sm">
+                <span className="truncate">{url}</span>
+                <Button variant="outline" type="button" onClick={() => removeExistingImage("en", idx)}>Remove</Button>
+              </div>
+            ))}
+          </div>
+        )}
+        <Input
+          type="file"
+          multiple
+          accept="image/*"
+          onChange={(e) => setImageFilesEnglish(Array.from(e.target.files || []))}
+        />
+        {imageFilesEnglish.length > 0 && (
+          <div className="mt-2 text-sm text-muted-foreground">
+            {imageFilesEnglish.length} file(s) selected
+          </div>
+        )}
+      </div>
+
+      <div>
+        <label className="block text-sm text-muted-foreground mb-2">Images (Arabic)</label>
+        {existingImageUrlArabic.length > 0 && (
+          <div className="mb-3 space-y-2">
+            {existingImageUrlArabic.map((url, idx) => (
+              <div key={`existing-ar-${idx}`} className="flex items-center justify-between gap-2 text-sm">
+                <span className="truncate">{url}</span>
+                <Button variant="outline" type="button" onClick={() => removeExistingImage("ar", idx)}>Remove</Button>
+              </div>
+            ))}
+          </div>
+        )}
+        <Input
+          type="file"
+          multiple
+          accept="image/*"
+          onChange={(e) => setImageFilesArabic(Array.from(e.target.files || []))}
+        />
+        {imageFilesArabic.length > 0 && (
+          <div className="mt-2 text-sm text-muted-foreground">
+            {imageFilesArabic.length} file(s) selected
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
