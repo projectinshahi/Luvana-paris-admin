@@ -1,5 +1,7 @@
 import { getApiUrl } from './api-config';
 
+let inMemoryToken: string | null = null;
+
 interface RequestOptions extends RequestInit {
  headers?: Record<string, string>;
 }
@@ -9,9 +11,19 @@ export interface ApiResponse<T> {
  message?: string; 
 }
 
+export const setAuthToken = (token: string | null) => {
+  inMemoryToken = token;
+  if (typeof window === 'undefined') return;
+  if (token) {
+    localStorage.setItem('token', token);
+  } else {
+    localStorage.removeItem('token');
+  }
+};
+
 async function fetchWithAuth<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-  
-  const token = localStorage.getItem('token');
+  const storedToken = typeof window === 'undefined' ? null : localStorage.getItem('token');
+  const token = inMemoryToken || storedToken;
 
   const defaultHeaders: Record<string, string> = {
     ...(token && { Authorization: `Bearer ${token}` }),
@@ -25,7 +37,7 @@ async function fetchWithAuth<T>(endpoint: string, options: RequestOptions = {}):
   });
 
   if (response.status === 401) {
-    localStorage.removeItem('token');
+    setAuthToken(null);
     //  window.location.href = '/login';
     throw new Error('Unauthorized');
   }

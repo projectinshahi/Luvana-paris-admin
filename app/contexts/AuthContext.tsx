@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { api } from '@/utils/api';
+import { api, setAuthToken } from '@/utils/api';
 
 interface User {
   id: string;
@@ -59,7 +59,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     } catch (error) {
       console.error('❌ checkAuth error:', error);
-      localStorage.removeItem('token');
+      setAuthToken(null);
       localStorage.removeItem('user');
       setUser(null);
     } finally {
@@ -75,7 +75,7 @@ const login = async (email: string, password: string): Promise<boolean> => {
     const data = await api.post('/admin/login', { email, password });
     console.log('📦 Raw response:', data);
     
-    localStorage.setItem('token', data.token);
+    setAuthToken(data.token);
     setUser(data.admin);
 
     console.log('✅ Login successful');
@@ -100,12 +100,12 @@ const login = async (email: string, password: string): Promise<boolean> => {
   };
 
   const setStudentUser = (data: LoginResponse) => {
-    localStorage.setItem('token', data.token);
+    setAuthToken(data.token);
     setUser(data.user);
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
+    setAuthToken(null);
     setUser(null);
     router.push('/login');
   };
