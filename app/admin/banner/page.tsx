@@ -17,6 +17,8 @@ type Banner = {
   descriptionArabic?: string;
   imageUrlEnglish?: string;
   imageUrlArabic?: string;
+  publicIdEnglish?: string;
+  publicIdArabic?: string;
   sortOrder: number;
   status: "active" | "inactive";
   createdAt: string;

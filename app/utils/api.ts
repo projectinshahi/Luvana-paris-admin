@@ -68,10 +68,10 @@ export const api = {
       body: data instanceof FormData ? data : JSON.stringify(data),
     }),
 
-  delete: <T,>(endpoint: string): Promise<T> => 
+  delete: <T,>(endpoint: string, data?: RequestData): Promise<T> => 
     fetchWithAuth<T>(endpoint, {
       method: 'DELETE',
-      body: JSON.stringify({}),
+      body: data instanceof FormData ? data : JSON.stringify(data || {}),
     }),
 
   patch: <T,>(endpoint: string, data: RequestData): Promise<T> => 

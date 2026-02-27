@@ -15,6 +15,12 @@ type Brand = {
   descriptionArabic?: string;
   logoUrlEnglish?: string;
   logoUrlArabic?: string;
+  logoPublicIdEnglish?: string;
+  logoPublicIdArabic?: string;
+  brandImageEnglish?: string;
+  brandImageArabic?: string;
+  brandImagePublicIdEnglish?: string;
+  brandImagePublicIdArabic?: string;
   status: "active" | "inactive";
   createdAt: string;
   updatedAt: string;

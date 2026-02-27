@@ -15,6 +15,8 @@ type Category = {
   descriptionArabic?: string;
   imageUrlEnglish?: string;
   imageUrlArabic?: string;
+  publicIdEnglish?: string;
+  publicIdArabic?: string;
   status: "active" | "inactive";
   createdAt: string;
   updatedAt: string;
