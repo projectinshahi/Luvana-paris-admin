@@ -7,6 +7,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { api } from "@/utils/api";
 
+type DescriptionItem = { description: string };
+
+type DescriptionSection = {
+  titleEnglish?: string;
+  titleArabic?: string;
+  descriptionEnglish?: DescriptionItem[];
+  descriptionArabic?: DescriptionItem[];
+};
+
 type ProductPayload = {
   _id?: string;
   category?: string;
@@ -18,9 +27,9 @@ type ProductPayload = {
   isFeatured?: boolean;
   isNew?: boolean;
   status?: "active" | "inactive";
-  description?: any[];
-  imageUrlEnglish?: any[];
-  imageUrlArabic?: any[];
+  description?: DescriptionSection[];
+  imageUrlEnglish?: Array<{ imageUrl: string; publicId?: string }>;
+  imageUrlArabic?: Array<{ imageUrl: string; publicId?: string }>;
 };
 
 const STORAGE_KEY = "lp:products";
@@ -42,6 +51,8 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
     imageUrlArabic: [],
   });
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [deletedPublicIds, setDeletedPublicIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(!!productId);
   const [categories, setCategories] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
@@ -89,8 +100,8 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
     fetchBrands();
   }, []);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target as HTMLInputElement;
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
     setForm((s) => ({ ...s, [name]: value }));
   };
 
@@ -99,31 +110,145 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
     setForm((s) => ({ ...s, [name]: checked }));
   };
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      const fieldName = (e.target as HTMLInputElement).name as keyof ProductPayload;
-      setForm((s) => ({
-        ...s,
-        [fieldName]: [...((s[fieldName] as any[]) || []), { imageUrl: result }],
-      }));
-    };
-    reader.readAsDataURL(files[0]);
-  };
-
-  const removeImage = (field: 'imageUrlEnglish' | 'imageUrlArabic', idx: number) => {
+  const addDescriptionSection = () => {
     setForm((s) => ({
       ...s,
-      [field]: (s[field] || []).filter((_, i) => i !== idx),
+      description: [
+        ...(s.description || []),
+        {
+          titleEnglish: "",
+          titleArabic: "",
+          descriptionEnglish: [{ description: "" }],
+          descriptionArabic: [{ description: "" }],
+        },
+      ],
     }));
+  };
+
+  const removeDescriptionSection = (sectionIdx: number) => {
+    setForm((s) => ({
+      ...s,
+      description: (s.description || []).filter((_, i) => i !== sectionIdx),
+    }));
+  };
+
+  const updateSectionField = (sectionIdx: number, field: "titleEnglish" | "titleArabic", value: string) => {
+    setForm((s) => ({
+      ...s,
+      description: (s.description || []).map((section, i) =>
+        i === sectionIdx ? { ...section, [field]: value } : section
+      ),
+    }));
+  };
+
+  const updateSectionItem = (
+    sectionIdx: number,
+    lang: "descriptionEnglish" | "descriptionArabic",
+    itemIdx: number,
+    value: string
+  ) => {
+    setForm((s) => ({
+      ...s,
+      description: (s.description || []).map((section, i) => {
+        if (i !== sectionIdx) return section;
+        const items = (section[lang] || []).map((item, idx) =>
+          idx === itemIdx ? { ...item, description: value } : item
+        );
+        return { ...section, [lang]: items };
+      }),
+    }));
+  };
+
+  const addSectionItem = (sectionIdx: number) => {
+    setForm((s) => ({
+      ...s,
+      description: (s.description || []).map((section, i) => {
+        if (i !== sectionIdx) return section;
+        return {
+          ...section,
+          descriptionEnglish: [...(section.descriptionEnglish || []), { description: "" }],
+          descriptionArabic: [...(section.descriptionArabic || []), { description: "" }],
+        };
+      }),
+    }));
+  };
+
+  const removeSectionItem = (sectionIdx: number, itemIdx: number) => {
+    setForm((s) => ({
+      ...s,
+      description: (s.description || []).map((section, i) => {
+        if (i !== sectionIdx) return section;
+        return {
+          ...section,
+          descriptionEnglish: (section.descriptionEnglish || []).filter((_, idx) => idx !== itemIdx),
+          descriptionArabic: (section.descriptionArabic || []).filter((_, idx) => idx !== itemIdx),
+        };
+      }),
+    }));
+  };
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    const fieldName = (e.target as HTMLInputElement).name as "imageUrlEnglish" | "imageUrlArabic";
+    setUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+
+      const response = await api.post<{
+        message: string;
+        image: {
+          url: string;
+          publicId: string;
+          width: number;
+          height: number;
+          size: number;
+          format: string;
+        };
+      }>("/admin/general/upload-image", formData);
+
+      setForm((s) => ({
+        ...s,
+        [fieldName]: [...(s[fieldName] || []), { imageUrl: response.image.url, publicId: response.image.publicId }],
+      }));
+    } catch (error) {
+      console.error("Failed to upload image:", error);
+      alert("Failed to upload image");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const removeImage = (field: "imageUrlEnglish" | "imageUrlArabic", idx: number) => {
+    setForm((s) => {
+      const current = s[field] || [];
+      const removed = current[idx];
+      if (removed?.publicId) {
+        setDeletedPublicIds((prev) => (prev.includes(removed.publicId as string) ? prev : [...prev, removed.publicId as string]));
+      }
+      return {
+        ...s,
+        [field]: current.filter((_, i) => i !== idx),
+      };
+    });
   };
 
   const submit = async () => {
     setSaving(true);
     try {
+      if (deletedPublicIds.length > 0) {
+        await Promise.all(
+          deletedPublicIds.map((publicId) =>
+            api.delete(`/admin/general/delete-image`, { publicId })
+          )
+        );
+      }
+
       if (productId) {
         await api.put(`/admin/product/${productId}`, form);
       } else {
@@ -175,6 +300,71 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
         <Textarea name="shortDescriptionArabic" value={form.shortDescriptionArabic || ''} onChange={handleChange} dir="rtl" lang="ar" className="text-right" />
       </div>
 
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="block text-sm text-muted-foreground">Description Sections</label>
+          <Button type="button" variant="outline" size="sm" onClick={addDescriptionSection}>Add Section</Button>
+        </div>
+
+        {(form.description || []).map((section, sectionIdx) => (
+          <div key={sectionIdx} className="rounded-md border p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-medium">Section {sectionIdx + 1}</div>
+              <Button type="button" variant="ghost" size="sm" onClick={() => removeDescriptionSection(sectionIdx)}>Remove</Button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-muted-foreground mb-1">Title (English)</label>
+                <Input
+                  value={section.titleEnglish || ""}
+                  onChange={(e) => updateSectionField(sectionIdx, "titleEnglish", e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-muted-foreground mb-1">Title (Arabic)</label>
+                <Input
+                  value={section.titleArabic || ""}
+                  onChange={(e) => updateSectionField(sectionIdx, "titleArabic", e.target.value)}
+                  dir="rtl"
+                  lang="ar"
+                  className="text-right"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block text-sm text-muted-foreground">Description (English)</label>
+                <label className="block text-sm text-muted-foreground">Description (Arabic)</label>
+              </div>
+              {(section.descriptionEnglish || []).map((item, itemIdx) => (
+                <div key={itemIdx} className="grid grid-cols-2 gap-3 items-start">
+                  <Input
+                    value={item.description || ""}
+                    onChange={(e) => updateSectionItem(sectionIdx, "descriptionEnglish", itemIdx, e.target.value)}
+                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={((section.descriptionArabic || [])[itemIdx] || {}).description || ""}
+                      onChange={(e) => updateSectionItem(sectionIdx, "descriptionArabic", itemIdx, e.target.value)}
+                      dir="rtl"
+                      lang="ar"
+                      className="text-right"
+                    />
+                    <Button type="button" variant="ghost" size="sm" onClick={() => removeSectionItem(sectionIdx, itemIdx)}>Remove</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end">
+              <Button type="button" variant="outline" size="sm" onClick={() => addSectionItem(sectionIdx)}>Add Item</Button>
+            </div>
+          </div>
+        ))}
+      </div>
+
       <div className="flex items-center gap-6">
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -198,11 +388,11 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
 
       <div>
         <label className="block text-sm text-muted-foreground mb-1">Images (English)</label>
-        <input type="file" name="imageUrlEnglish" accept="image/*" onChange={handleFile} />
+        <input type="file" name="imageUrlEnglish" accept="image/*" onChange={handleFile} disabled={uploading} />
         <div className="flex gap-2 mt-2">
           {(form.imageUrlEnglish || []).map((img, idx) => (
             <div key={idx} className="relative">
-              <img src={img.imageUrl || img} className="h-20 w-20 object-cover rounded" alt="preview" />
+              <img src={img.imageUrl} className="h-20 w-20 object-cover rounded" alt="preview" />
               <button type="button" onClick={() => removeImage('imageUrlEnglish', idx)} className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">×</button>
             </div>
           ))}
@@ -211,11 +401,11 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
 
       <div>
         <label className="block text-sm text-muted-foreground mb-1">Images (Arabic)</label>
-        <input type="file" name="imageUrlArabic" accept="image/*" onChange={handleFile} />
+        <input type="file" name="imageUrlArabic" accept="image/*" onChange={handleFile} disabled={uploading} />
         <div className="flex gap-2 mt-2">
           {(form.imageUrlArabic || []).map((img, idx) => (
             <div key={idx} className="relative">
-              <img src={img.imageUrl || img} className="h-20 w-20 object-cover rounded" alt="preview" />
+              <img src={img.imageUrl} className="h-20 w-20 object-cover rounded" alt="preview" />
               <button type="button" onClick={() => removeImage('imageUrlArabic', idx)} className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">×</button>
             </div>
           ))}
@@ -224,7 +414,7 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
 
       <div className="flex items-center gap-2">
         <Button variant="outline" onClick={() => router.push('/admin/product')}>Cancel</Button>
-        <Button onClick={submit} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
+        <Button onClick={submit} disabled={saving || uploading}>{saving ? 'Saving...' : uploading ? 'Uploading...' : 'Save'}</Button>
       </div>
     </div>
   );

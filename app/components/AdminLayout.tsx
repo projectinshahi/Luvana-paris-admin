@@ -19,6 +19,7 @@ import {
   Package,
   Dice1,
   ShoppingCart,
+  PersonStanding
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -102,6 +103,13 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         path: "/admin/promotion-strip",
         permission: "promotion-strip",
         visible: true,//hasPermission("promotion-strip")
+      },
+      { 
+        title: "Influencer", 
+        icon: <PersonStanding className="h-5 w-5" />, 
+        path: "/admin/influencer",
+        permission: "influencer",
+        visible: true,//hasPermission("influencer")
       },
       // { 
       //   title: "Coupon", 

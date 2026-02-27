@@ -15,18 +15,20 @@ type VariantPayload = {
   stock?: number;
   price?: number;
   mrp?: number;
-  imageUrlEnglish?: Array<{ imageUrl: string }>;
-  imageUrlArabic?: Array<{ imageUrl: string }>;
+  imageUrlEnglish?: Array<{ imageUrl: string; publicId?: string }>;
+  imageUrlArabic?: Array<{ imageUrl: string; publicId?: string }>;
 };
 
 export default function VariantForm({ productId, variantId }: { productId?: string; variantId?: string } = {}) {
   const router = useRouter();
   const [form, setForm] = useState<VariantPayload>({ nameEnglish: '', price: 0, stock: 0, product: productId });
-  const [existingImageUrlEnglish, setExistingImageUrlEnglish] = useState<string[]>([]);
-  const [existingImageUrlArabic, setExistingImageUrlArabic] = useState<string[]>([]);
+  const [existingImageUrlEnglish, setExistingImageUrlEnglish] = useState<Array<{ imageUrl: string; publicId?: string }>>([]);
+  const [existingImageUrlArabic, setExistingImageUrlArabic] = useState<Array<{ imageUrl: string; publicId?: string }>>([]);
   const [imageFilesEnglish, setImageFilesEnglish] = useState<File[]>([]);
   const [imageFilesArabic, setImageFilesArabic] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [deletedPublicIds, setDeletedPublicIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!variantId || !productId) return;
@@ -47,34 +49,47 @@ export default function VariantForm({ productId, variantId }: { productId?: stri
         price: v.price,
         mrp: v.mrp,
       });
-      setExistingImageUrlEnglish((v.imageUrlEnglish || []).map((img: any) => img.imageUrl || "").filter(Boolean));
-      setExistingImageUrlArabic((v.imageUrlArabic || []).map((img: any) => img.imageUrl || "").filter(Boolean));
+      setExistingImageUrlEnglish((v.imageUrlEnglish || []).map((img: any) => ({ imageUrl: img.imageUrl || "", publicId: img.publicId })).filter((img: any) => img.imageUrl));
+      setExistingImageUrlArabic((v.imageUrlArabic || []).map((img: any) => ({ imageUrl: img.imageUrl || "", publicId: img.publicId })).filter((img: any) => img.imageUrl));
     } catch (error) {
       console.error("Failed to fetch variant:", error);
     }
   };
 
-  const uploadFiles = async (files: File[]): Promise<string[]> => {
+  const uploadFiles = async (files: File[]): Promise<Array<{ imageUrl: string; publicId: string }>> => {
     if (files.length === 0) return [];
-    const endpoint = process.env.NEXT_PUBLIC_UPLOAD_URL;
-    if (!endpoint) {
-      throw new Error("Upload endpoint is not configured");
+    setUploading(true);
+
+    try {
+      const uploads = await Promise.all(
+        files.map(async (file) => {
+          const formData = new FormData();
+          formData.append("image", file);
+
+          const response = await api.post<{
+            message: string;
+            image: {
+              url: string;
+              publicId: string;
+              width: number;
+              height: number;
+              size: number;
+              format: string;
+            };
+          }>("/admin/general/upload-image", formData);
+
+          return { imageUrl: response.image.url, publicId: response.image.publicId };
+        })
+      );
+
+      return uploads;
+    } catch (error) {
+      console.error("Failed to upload images:", error);
+      alert("Failed to upload images");
+      throw error;
+    } finally {
+      setUploading(false);
     }
-
-    const formData = new FormData();
-    files.forEach((file) => formData.append("files", file));
-
-    const response = await fetch(endpoint, {
-      method: "POST",
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error("Failed to upload files");
-    }
-
-    const data = await response.json();
-    return data.urls || data.imageUrls || [];
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -89,6 +104,14 @@ export default function VariantForm({ productId, variantId }: { productId?: stri
   const submit = async () => {
     setSaving(true);
     try {
+      if (deletedPublicIds.length > 0) {
+        await Promise.all(
+          deletedPublicIds.map((publicId) =>
+            api.delete(`/admin/general/delete-image`, { publicId })
+          )
+        );
+      }
+
       const uploadedEnglish = await uploadFiles(imageFilesEnglish);
       const uploadedArabic = await uploadFiles(imageFilesArabic);
       const finalEnglish = existingImageUrlEnglish.concat(uploadedEnglish);
@@ -102,8 +125,8 @@ export default function VariantForm({ productId, variantId }: { productId?: stri
         stock: form.stock,
         price: form.price,
         mrp: form.mrp,
-        imageUrlEnglish: finalEnglish.map((url) => ({ imageUrl: url })),
-        imageUrlArabic: finalArabic.map((url) => ({ imageUrl: url })),
+        imageUrlEnglish: finalEnglish,
+        imageUrlArabic: finalArabic,
       };
 
       if (variantId) {
@@ -119,9 +142,21 @@ export default function VariantForm({ productId, variantId }: { productId?: stri
 
   const removeExistingImage = (type: "en" | "ar", idx: number) => {
     if (type === "en") {
-      setExistingImageUrlEnglish((prev) => prev.filter((_, i) => i !== idx));
+      setExistingImageUrlEnglish((prev) => {
+        const removed = prev[idx];
+        if (removed?.publicId) {
+          setDeletedPublicIds((ids) => (ids.includes(removed.publicId as string) ? ids : [...ids, removed.publicId as string]));
+        }
+        return prev.filter((_, i) => i !== idx);
+      });
     } else {
-      setExistingImageUrlArabic((prev) => prev.filter((_, i) => i !== idx));
+      setExistingImageUrlArabic((prev) => {
+        const removed = prev[idx];
+        if (removed?.publicId) {
+          setDeletedPublicIds((ids) => (ids.includes(removed.publicId as string) ? ids : [...ids, removed.publicId as string]));
+        }
+        return prev.filter((_, i) => i !== idx);
+      });
     }
   };
 
@@ -144,11 +179,11 @@ export default function VariantForm({ productId, variantId }: { productId?: stri
 
       <div className="grid grid-cols-3 gap-3">
         <div>
-          <label className="block text-sm text-muted-foreground mb-1">Price</label>
+          <label className="block text-sm text-muted-foreground mb-1">Selling Price</label>
           <Input name="price" type="number" value={String(form.price ?? 0)} onChange={handleChange} />
         </div>
         <div>
-          <label className="block text-sm text-muted-foreground mb-1">MRP</label>
+          <label className="block text-sm text-muted-foreground mb-1">Actual Price</label>
           <Input name="mrp" type="number" value={String(form.mrp ?? 0)} onChange={handleChange} />
         </div>
         <div>
@@ -162,9 +197,11 @@ export default function VariantForm({ productId, variantId }: { productId?: stri
         {existingImageUrlEnglish.length > 0 && (
           <div className="mb-3 space-y-2">
             {existingImageUrlEnglish.map((url, idx) => (
-              <div key={`existing-en-${idx}`} className="flex items-center justify-between gap-2 text-sm">
-                <span className="truncate">{url}</span>
-                <Button variant="outline" type="button" onClick={() => removeExistingImage("en", idx)}>Remove</Button>
+              <div key={`existing-en-${idx}`} className="flex items-center justify-between gap-3 text-sm">
+                <div className="flex items-center gap-2 min-w-0">
+                  <img src={url.imageUrl} alt="preview" className="h-10 w-10 rounded object-cover" />
+                  <Button variant="outline" type="button" onClick={() => removeExistingImage("en", idx)}>Remove</Button>
+                </div>
               </div>
             ))}
           </div>
@@ -174,7 +211,20 @@ export default function VariantForm({ productId, variantId }: { productId?: stri
           multiple
           accept="image/*"
           onChange={(e) => setImageFilesEnglish(Array.from(e.target.files || []))}
+          disabled={uploading}
         />
+        {imageFilesEnglish.length > 0 && (
+          <div className="mt-3 grid grid-cols-4 gap-2">
+            {imageFilesEnglish.map((file, idx) => (
+              <img
+                key={`new-en-${idx}`}
+                src={URL.createObjectURL(file)}
+                alt="preview"
+                className="h-20 w-20 rounded object-cover"
+              />
+            ))}
+          </div>
+        )}
         {imageFilesEnglish.length > 0 && (
           <div className="mt-2 text-sm text-muted-foreground">
             {imageFilesEnglish.length} file(s) selected
@@ -187,9 +237,11 @@ export default function VariantForm({ productId, variantId }: { productId?: stri
         {existingImageUrlArabic.length > 0 && (
           <div className="mb-3 space-y-2">
             {existingImageUrlArabic.map((url, idx) => (
-              <div key={`existing-ar-${idx}`} className="flex items-center justify-between gap-2 text-sm">
-                <span className="truncate">{url}</span>
-                <Button variant="outline" type="button" onClick={() => removeExistingImage("ar", idx)}>Remove</Button>
+              <div key={`existing-ar-${idx}`} className="flex items-center justify-between gap-3 text-sm">
+                <div className="flex items-center gap-2 min-w-0">
+                  <img src={url.imageUrl} alt="preview" className="h-10 w-10 rounded object-cover" />
+                  <Button variant="outline" type="button" onClick={() => removeExistingImage("ar", idx)}>Remove</Button>
+                </div>
               </div>
             ))}
           </div>
@@ -199,7 +251,20 @@ export default function VariantForm({ productId, variantId }: { productId?: stri
           multiple
           accept="image/*"
           onChange={(e) => setImageFilesArabic(Array.from(e.target.files || []))}
+          disabled={uploading}
         />
+        {imageFilesArabic.length > 0 && (
+          <div className="mt-3 grid grid-cols-4 gap-2">
+            {imageFilesArabic.map((file, idx) => (
+              <img
+                key={`new-ar-${idx}`}
+                src={URL.createObjectURL(file)}
+                alt="preview"
+                className="h-20 w-20 rounded object-cover"
+              />
+            ))}
+          </div>
+        )}
         {imageFilesArabic.length > 0 && (
           <div className="mt-2 text-sm text-muted-foreground">
             {imageFilesArabic.length} file(s) selected
@@ -209,7 +274,7 @@ export default function VariantForm({ productId, variantId }: { productId?: stri
 
       <div className="flex items-center gap-2">
         <Button variant="outline" onClick={() => router.push(`/admin/product/${productId}`)}>Cancel</Button>
-        <Button onClick={submit} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
+        <Button onClick={submit} disabled={saving || uploading}>{saving ? 'Saving...' : uploading ? 'Uploading...' : 'Save'}</Button>
       </div>
     </div>
   );
