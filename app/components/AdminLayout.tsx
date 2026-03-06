@@ -19,7 +19,8 @@ import {
   Package,
   Dice1,
   ShoppingCart,
-  PersonStanding
+  PersonStanding,
+  Flag
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -110,6 +111,13 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         path: "/admin/influencer",
         permission: "influencer",
         visible: true,//hasPermission("influencer")
+      },
+      { 
+        title: "Country", 
+        icon: <Flag className="h-5 w-5" />, 
+        path: "/admin/country",
+        permission: "country",
+        visible: true,//hasPermission("country")
       },
       // { 
       //   title: "Coupon", 
