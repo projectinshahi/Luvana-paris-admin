@@ -5,7 +5,7 @@ import AdminLayout from "@/components/AdminLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { ShoppingCart, Users, Package, DollarSign, TrendingUp } from "lucide-react";
+import { ShoppingCart, Users, Package, Coins, TrendingUp } from "lucide-react";
 import { api } from "@/utils/api";
 
 type DashboardData = {
@@ -157,7 +157,7 @@ export default function DashboardPage() {
                   <TrendingUp className="h-3 w-3" /> {growth.salesGrowth}% increase
                 </div>
               </div>
-              <div className="p-3 bg-white/20 rounded-full"><DollarSign className="h-8 w-8" /></div>
+              <div className="p-3 bg-white/20 rounded-full"><Coins className="h-8 w-8" /></div>
             </div>
           </div>
         </div>
