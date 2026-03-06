@@ -174,7 +174,7 @@ export default function PromotionStripPage() {
                     </td>
                     <td className="px-4 py-3 align-top">
                       <button
-                        className={`px-3 py-1 rounded text-sm font-medium ${it.status === 'active' ? 'bg-green-600 text-white' : 'bg-gray-200 text-muted-foreground'}`}
+                        className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${it.status === 'active' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                         onClick={() => toggleStatus(it._id)}
                       >
                         {it.status}
@@ -182,8 +182,8 @@ export default function PromotionStripPage() {
                     </td>
                     <td className="px-4 py-3 align-top">
                       <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => { setEditing(it); setOpen(true); }}>Edit</Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(it._id)}>Delete</Button>
+                        <Button className="bg-blue-600 hover:bg-blue-700 text-white" size="sm" onClick={() => { setEditing(it); setOpen(true); }}>Edit</Button>
+                        <Button className="bg-red-600 hover:bg-red-700 text-white" size="sm" onClick={() => handleDelete(it._id)}>Delete</Button>
                       </div>
                     </td>
                   </tr>

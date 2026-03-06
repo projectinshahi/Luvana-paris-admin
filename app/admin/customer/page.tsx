@@ -123,11 +123,11 @@ export default function CustomersPage() {
                     <td className="px-4 py-3 align-top">{c.phone || '-'}</td>
                     <td className="px-4 py-3 align-top">{c.lastlogin ? new Date(c.lastlogin).toLocaleString() : '-'}</td>
                     <td className="px-4 py-3 align-top">
-                      <button className={`px-3 py-1 rounded text-sm font-medium ${c.status === 'active' ? 'bg-green-600 text-white' : 'bg-gray-200 text-muted-foreground'}`} onClick={() => toggleStatus(c.id)}>{c.status}</button>
+                      <button className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${c.status === 'active' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`} onClick={() => toggleStatus(c.id)}>{c.status}</button>
                     </td>
                     <td className="px-4 py-3 align-top">
                       <div className="flex items-center gap-2">
-                        <Link href={`/admin/customer/${c.id}`}><Button variant="outline" size="sm">View</Button></Link>
+                        <Link href={`/admin/customer/${c.id}`}><Button className="bg-purple-600 hover:bg-purple-700 text-white" size="sm">View</Button></Link>
                       </div>
                     </td>
                   </tr>

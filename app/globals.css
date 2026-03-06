@@ -3,7 +3,8 @@
 @tailwind utilities;
 
 body {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f8fafc;
 }
 
 @layer base {
@@ -70,5 +71,86 @@ body {
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
+  }
+}
+
+@layer components {
+  /* Enhanced Card Styling */
+  .card {
+    @apply rounded-xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow duration-200;
+  }
+
+  /* Enhanced Table Styling */
+  table {
+    @apply w-full text-sm;
+  }
+
+  thead {
+    @apply bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200;
+  }
+
+  thead th {
+    @apply px-6 py-4 text-left font-semibold text-slate-700 first:rounded-tl-lg last:rounded-tr-lg;
+  }
+
+  tbody tr {
+    @apply border-b border-slate-100 hover:bg-slate-50 transition-colors duration-100;
+  }
+
+  tbody td {
+    @apply px-6 py-4 text-slate-700;
+  }
+
+  tbody tr:last-child {
+    @apply border-b-0;
+  }
+
+  /* Enhanced Button Styling */
+  button {
+    @apply transition-all duration-200;
+  }
+
+  /* Badge improvements */
+  .badge {
+    @apply px-3 py-1 rounded-full font-medium text-xs inline-flex items-center;
+  }
+
+  .badge-primary {
+    @apply bg-blue-100 text-blue-800;
+  }
+
+  .badge-success {
+    @apply bg-green-100 text-green-800;
+  }
+
+  .badge-danger {
+    @apply bg-red-100 text-red-800;
+  }
+
+  .badge-warning {
+    @apply bg-yellow-100 text-yellow-800;
+  }
+
+  /* Input styling */
+  input, textarea, select {
+    @apply transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+  }
+
+  /* Dialog improvements */
+  [role="dialog"] {
+    @apply rounded-xl;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-slate-100 rounded;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 rounded hover:bg-slate-400;
   }
 }

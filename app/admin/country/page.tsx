@@ -157,8 +157,11 @@ export default function CountryPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <Badge
-                        variant={country.status === "active" ? "default" : "secondary"}
-                        className="cursor-pointer"
+                        className={`cursor-pointer font-medium px-3 py-1 rounded-full text-xs ${
+                          country.status === "active"
+                            ? "bg-green-100 text-green-700 hover:bg-green-200"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
                         onClick={() => handleStatusToggle(country)}
                       >
                         {country.status}
@@ -166,15 +169,15 @@ export default function CountryPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                       <Button
-                        variant="outline"
                         size="sm"
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
                         onClick={() => handleEdit(country)}
                       >
                         Edit
                       </Button>
                       <Button
-                        variant="destructive"
                         size="sm"
+                        className="bg-red-600 hover:bg-red-700 text-white"
                         onClick={() => handleDelete(country._id, country.publicId)}
                       >
                         Delete

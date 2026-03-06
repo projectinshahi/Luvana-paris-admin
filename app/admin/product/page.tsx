@@ -276,13 +276,13 @@ export default function ProductListPage() {
                     <td className="px-4 py-3 align-top">{p.category?.nameEnglish || '-'}</td>
                     <td className="px-4 py-3 align-top">{p.brand?.nameEnglish || '-'}</td>
                     <td className="px-4 py-3 align-top">
-                      <button className={`px-3 py-1 rounded text-sm font-medium ${p.status === 'active' ? 'bg-green-600 text-white' : 'bg-gray-200 text-muted-foreground'}`} onClick={() => toggleStatus(p._id)}>{p.status}</button>
+                      <button className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${p.status === 'active' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`} onClick={() => toggleStatus(p._id)}>{p.status}</button>
                     </td>
                     <td className="px-4 py-3 align-top">
                       <div className="flex items-center gap-2">
-                        <Link href={`/admin/product/${p._id}/edit`}><Button variant="outline" size="sm">Edit</Button></Link>
-                        <Link href={`/admin/product/${p._id}`}><Button variant="ghost" size="sm">Variants</Button></Link>
-                        <Button variant="destructive" size="sm" onClick={() => handleDelete(p._id)}>Delete</Button>
+                        <Link href={`/admin/product/${p._id}/edit`}><Button className="bg-blue-600 hover:bg-blue-700 text-white" size="sm">Edit</Button></Link>
+                        <Link href={`/admin/product/${p._id}`}><Button className="bg-purple-600 hover:bg-purple-700 text-white" size="sm">Variants</Button></Link>
+                        <Button className="bg-red-600 hover:bg-red-700 text-white" size="sm" onClick={() => handleDelete(p._id)}>Delete</Button>
                       </div>
                     </td>
                   </tr>

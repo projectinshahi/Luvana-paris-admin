@@ -103,173 +103,201 @@ export default function DashboardPage() {
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
+      <div className="space-y-8">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-semibold">Dashboard</h2>
           <div>
-            <Button variant="outline" size="sm" onClick={fetchDashboard}>Refresh</Button>
+            <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
+            <p className="text-slate-500 mt-1">Welcome back! Here's your business overview.</p>
+          </div>
+          <Button onClick={fetchDashboard} className="bg-blue-600 hover:bg-blue-700">Refresh Data</Button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-blue-100 text-sm font-medium">Total Orders</p>
+                <p className="text-4xl font-bold mt-2">{metrics.totalOrders}</p>
+                <div className="text-xs text-blue-100 flex items-center gap-1 mt-3">
+                  <TrendingUp className="h-3 w-3" /> {growth.orderGrowth}% increase
+                </div>
+              </div>
+              <div className="p-3 bg-white/20 rounded-full"><ShoppingCart className="h-8 w-8" /></div>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-green-100 text-sm font-medium">Total Users</p>
+                <p className="text-4xl font-bold mt-2">{metrics.totalUsers}</p>
+                <div className="text-xs text-green-100 mt-3">{metrics.totalActiveUsers} active users</div>
+              </div>
+              <div className="p-3 bg-white/20 rounded-full"><Users className="h-8 w-8" /></div>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-purple-100 text-sm font-medium">Total Products</p>
+                <p className="text-4xl font-bold mt-2">{metrics.totalProducts}</p>
+                <div className="text-xs text-purple-100 mt-3">In inventory</div>
+              </div>
+              <div className="p-3 bg-white/20 rounded-full"><Package className="h-8 w-8" /></div>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-amber-100 text-sm font-medium">Total Sales</p>
+                <p className="text-4xl font-bold mt-2">KWD {metrics.totalSalesAmount}</p>
+                <div className="text-xs text-amber-100 flex items-center gap-1 mt-3">
+                  <TrendingUp className="h-3 w-3" /> {growth.salesGrowth}% increase
+                </div>
+              </div>
+              <div className="p-3 bg-white/20 rounded-full"><DollarSign className="h-8 w-8" /></div>
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-4">
-          <Card className="p-4 flex items-center gap-4">
-            <div className="p-2 bg-blue-100 rounded-md"><ShoppingCart className="h-6 w-6 text-blue-600" /></div>
-            <div>
-              <div className="text-sm text-muted-foreground">Total Orders</div>
-              <div className="text-2xl font-semibold">{metrics.totalOrders}</div>
-              <div className="text-xs text-green-600 flex items-center gap-1 mt-1">
-                <TrendingUp className="h-3 w-3" /> {growth.orderGrowth}% growth
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+            <h3 className="font-bold text-lg text-slate-900 mb-4">Revenue Breakdown</h3>
+            <div className="space-y-4 text-sm">
+              <div className="flex justify-between items-center pb-3 border-b border-slate-200">
+                <span className="text-slate-600">Total Sales</span>
+                <span className="font-semibold text-slate-900">KWD {metrics.totalSalesAmount}</span>
+              </div>
+              <div className="flex justify-between items-center pb-3 border-b border-slate-200">
+                <span className="text-slate-600">Discounts Applied</span>
+                <span className="font-semibold text-red-600">-KWD {metrics.totalDiscount}</span>
+              </div>
+              <div className="flex justify-between items-center pb-3 border-b border-slate-200">
+                <span className="text-slate-600">Shipping Charges</span>
+                <span className="font-semibold text-slate-900">KWD {metrics.totalShipping}</span>
+              </div>
+              <div className="flex justify-between items-center pt-2">
+                <span className="font-semibold text-slate-800">Avg Order Value</span>
+                <span className="font-bold text-blue-600 text-lg">KWD {metrics.averageOrderValue}</span>
               </div>
             </div>
-          </Card>
+          </div>
 
-          <Card className="p-4 flex items-center gap-4">
-            <div className="p-2 bg-green-100 rounded-md"><Users className="h-6 w-6 text-green-600" /></div>
-            <div>
-              <div className="text-sm text-muted-foreground">Total Users</div>
-              <div className="text-2xl font-semibold">{metrics.totalUsers}</div>
-              <div className="text-xs text-muted-foreground mt-1">{metrics.totalActiveUsers} active</div>
-            </div>
-          </Card>
-
-          <Card className="p-4 flex items-center gap-4">
-            <div className="p-2 bg-purple-100 rounded-md"><Package className="h-6 w-6 text-purple-600" /></div>
-            <div>
-              <div className="text-sm text-muted-foreground">Total Products</div>
-              <div className="text-2xl font-semibold">{metrics.totalProducts}</div>
-            </div>
-          </Card>
-
-          <Card className="p-4 flex items-center gap-4">
-            <div className="p-2 bg-amber-100 rounded-md"><DollarSign className="h-6 w-6 text-amber-600" /></div>
-            <div>
-              <div className="text-sm text-muted-foreground">Total Sales</div>
-              <div className="text-2xl font-semibold">${metrics.totalSalesAmount}</div>
-              <div className="text-xs text-green-600 flex items-center gap-1 mt-1">
-                <TrendingUp className="h-3 w-3" /> {growth.salesGrowth}% growth
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        <div className="grid grid-cols-3 gap-4">
-          <Card className="p-4">
-            <h3 className="font-semibold mb-3 text-sm">Revenue Breakdown</h3>
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+            <h3 className="font-bold text-lg text-slate-900 mb-4">Order Status</h3>
             <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Total Sales</span>
-                <span className="font-medium">${metrics.totalSalesAmount}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Discounts</span>
-                <span className="font-medium text-red-600">-${metrics.totalDiscount}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Shipping</span>
-                <span className="font-medium">${metrics.totalShipping}</span>
-              </div>
-              <div className="border-t pt-2 flex justify-between">
-                <span className="font-semibold">Avg Order Value</span>
-                <span className="font-semibold">${metrics.averageOrderValue}</span>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-4">
-            <h3 className="font-semibold mb-3 text-sm">Order Status</h3>
-            <div className="space-y-2 text-sm">
               {Object.entries(orderStatusBreakdown).map(([status, count]) => (
-                <div key={status} className="flex justify-between items-center">
-                  <span className="capitalize text-muted-foreground">{status}</span>
-                  <span className="px-2 py-1 bg-gray-100 rounded text-sm font-medium">{count}</span>
+                <div key={status} className="flex justify-between items-center p-2 bg-slate-50 rounded-lg">
+                  <span className="capitalize text-slate-600 font-medium">{status}</span>
+                  <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full font-semibold text-xs">{count}</span>
                 </div>
               ))}
             </div>
-          </Card>
+          </div>
 
-          <Card className="p-4">
-            <h3 className="font-semibold mb-3 text-sm">Payment Status</h3>
-            <div className="space-y-2 text-sm">
+
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+            <h3 className="font-bold text-lg text-slate-900 mb-4">Payment Status</h3>
+            <div className="space-y-3 text-sm">
               {Object.entries(paymentStatusBreakdown).map(([status, count]) => (
-                <div key={status} className="flex justify-between items-center">
-                  <span className="capitalize text-muted-foreground">{status}</span>
-                  <span className={`px-2 py-1 rounded text-sm font-medium ${status === 'paid' ? 'bg-green-100 text-green-700' : status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                <div key={status} className="flex justify-between items-center p-2 bg-slate-50 rounded-lg">
+                  <span className="capitalize text-slate-600 font-medium">{status}</span>
+                  <span className={`px-3 py-1 rounded-full font-semibold text-xs ${
+                    status === 'paid' ? 'bg-green-100 text-green-700' : 
+                    status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 
+                    'bg-red-100 text-red-700'
+                  }`}>
                     {count}
                   </span>
                 </div>
               ))}
             </div>
-          </Card>
+          </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
-          <Card className="p-4 col-span-2">
-            <h3 className="font-semibold mb-3">Recent Orders</h3>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="p-6 border-b border-slate-200">
+              <h3 className="font-bold text-lg text-slate-900">Recent Orders</h3>
+            </div>
             {recentOrders.length === 0 ? (
-              <div className="text-muted-foreground">No recent orders</div>
+              <div className="p-6 text-center text-slate-500">No recent orders</div>
             ) : (
-              <table className="w-full text-left table-auto">
-                <thead>
-                  <tr className="text-sm text-muted-foreground border-b">
-                    <th className="px-4 py-2">Order ID</th>
-                    <th className="px-4 py-2">Customer</th>
-                    <th className="px-4 py-2">Amount</th>
-                    <th className="px-4 py-2">Payment</th>
-                    <th className="px-4 py-2">Order Status</th>
-                    <th className="px-4 py-2">Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentOrders.slice(0, 8).map((order) => (
-                    <tr key={order.id} className="border-t text-sm">
-                      <td className="px-4 py-3">
-                        <Link href={`/admin/order/${order.id}`} className="text-blue-600 hover:underline">
-                          {order.orderId}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3">{order.customerName}</td>
-                      <td className="px-4 py-3">${order.amount - order.discount + order.shippingCharges}</td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${order.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : order.paymentStatus === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                          {order.paymentStatus}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${order.orderStatus === 'delivered' ? 'bg-green-100 text-green-700' : order.orderStatus === 'shipped' ? 'bg-blue-100 text-blue-700' : order.orderStatus === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                          {order.orderStatus}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">{new Date(order.date).toLocaleDateString()}</td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="px-6 py-3 font-semibold text-slate-700">Order ID</th>
+                      <th className="px-6 py-3 font-semibold text-slate-700">Customer</th>
+                      <th className="px-6 py-3 font-semibold text-slate-700">Amount</th>
+                      <th className="px-6 py-3 font-semibold text-slate-700">Payment</th>
+                      <th className="px-6 py-3 font-semibold text-slate-700">Order Status</th>
+                      <th className="px-6 py-3 font-semibold text-slate-700">Date</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {recentOrders.slice(0, 8).map((order) => (
+                      <tr key={order.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-3">
+                          <Link href={`/admin/order/${order.id}`} className="text-blue-600 hover:text-blue-800 font-medium">
+                            {order.orderId}
+                          </Link>
+                        </td>
+                        <td className="px-6 py-3 text-slate-700">{order.customerName}</td>
+                        <td className="px-6 py-3 font-semibold text-slate-900">KWD {order.amount - order.discount + order.shippingCharges}</td>
+                        <td className="px-6 py-3">
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            order.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 
+                            order.paymentStatus === 'pending' ? 'bg-yellow-100 text-yellow-700' : 
+                            'bg-red-100 text-red-700'
+                          }`}>
+                            {order.paymentStatus}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3">
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            order.orderStatus === 'delivered' ? 'bg-green-100 text-green-700' : 
+                            order.orderStatus === 'shipped' ? 'bg-blue-100 text-blue-700' : 
+                            order.orderStatus === 'pending' ? 'bg-yellow-100 text-yellow-700' : 
+                            'bg-red-100 text-red-700'
+                          }`}>
+                            {order.orderStatus}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3 text-slate-600">{new Date(order.date).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
-          </Card>
+          </div>
 
-          <Card className="p-4">
-            <h3 className="font-semibold mb-3">Top Selling Products</h3>
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+            <h3 className="font-bold text-lg text-slate-900 mb-4">Top Selling Products</h3>
             {topSellingProducts.length === 0 ? (
-              <div className="text-muted-foreground">No sales data</div>
+              <div className="text-center text-slate-500 py-4">No sales data available</div>
             ) : (
               <div className="space-y-3">
                 {topSellingProducts.slice(0, 5).map((product, idx) => (
-                  <div key={idx} className="border-b pb-3 last:border-b-0">
-                    <div className="flex items-start gap-2">
-                      {product.imageUrl && (
-                        <img src={product.imageUrl} alt={product.productName} className="h-10 w-10 rounded object-cover" />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{product.productName}</div>
-                        <div className="text-xs text-muted-foreground">Qty: {product.totalQuantity}</div>
-                        <div className="text-xs font-semibold text-amber-600">${product.totalRevenue}</div>
+                  <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
+                    {product.imageUrl && (
+                      <img src={product.imageUrl} alt={product.productName} className="h-12 w-12 rounded-lg object-cover flex-shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-slate-900 truncate">{product.productName}</p>
+                      <div className="flex items-center justify-between mt-1">
+                        <p className="text-xs text-slate-600">Qty: {product.totalQuantity}</p>
+                        <p className="text-sm font-semibold text-blue-600">KWD {product.totalRevenue}</p>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
-          </Card>
+          </div>
         </div>
       </div>
     </AdminLayout>

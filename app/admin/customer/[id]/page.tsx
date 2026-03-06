@@ -119,7 +119,7 @@ export default function CustomerDetailPage() {
             <div>
               <div className="text-sm text-muted-foreground">Status</div>
               <div className="font-medium">
-                <span className={`px-3 py-1 rounded text-sm font-medium ${customer.status === 'active' ? 'bg-green-600 text-white' : 'bg-gray-200 text-muted-foreground'}`}>
+                <span className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${customer.status === 'active' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                   {customer.status}
                 </span>
               </div>
@@ -142,7 +142,7 @@ export default function CustomerDetailPage() {
           </Card>
           <Card className="p-4">
             <div className="text-sm text-muted-foreground">Total Spent</div>
-            <div className="text-2xl font-semibold">${totalSpent}</div>
+            <div className="text-2xl font-semibold">KWD {totalSpent}</div>
           </Card>
         </div>
 
@@ -170,7 +170,7 @@ export default function CustomerDetailPage() {
                     <tr key={o.id} className="border-t">
                       <td className="px-4 py-3 align-top font-medium">{o.orderId}</td>
                       <td className="px-4 py-3 align-top">{(o.orderItem || []).length} item(s)</td>
-                      <td className="px-4 py-3 align-top">${amount}</td>
+                      <td className="px-4 py-3 align-top">KWD {amount}</td>
                       <td className="px-4 py-3 align-top">
                         <span className={`px-2 py-1 rounded text-xs font-medium ${
                           o.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' : 
@@ -195,7 +195,7 @@ export default function CustomerDetailPage() {
                       </td>
                       <td className="px-4 py-3 align-top">
                         <Link href={`/admin/order/${o.id}`}>
-                          <Button variant="outline" size="sm">View</Button>
+                          <Button className="bg-purple-600 hover:bg-purple-700 text-white" size="sm">View</Button>
                         </Link>
                       </td>
                     </tr>

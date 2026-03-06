@@ -174,7 +174,16 @@ export default function VariantForm({ productId, variantId }: { productId?: stri
 
       <div>
         <label className="block text-sm text-muted-foreground mb-1">Color</label>
-        <Input name="color" value={form.color || ''} onChange={handleChange} />
+        <div className="flex items-center gap-3">
+          <input 
+            type="color" 
+            name="color" 
+            value={form.color || '#000000'} 
+            onChange={handleChange}
+            className="h-10 w-20 rounded cursor-pointer border border-muted"
+          />
+          <span className="text-sm font-mono text-muted-foreground">{form.color || '#000000'}</span>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-3">

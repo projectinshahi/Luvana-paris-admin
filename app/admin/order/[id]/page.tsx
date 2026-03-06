@@ -214,19 +214,19 @@ export default function OrderDetailPage() {
             </div>
             <div>
               <div className="text-sm text-muted-foreground">Subtotal</div>
-              <div className="font-medium">${order.price || 0}</div>
+              <div className="font-medium">KWD {order.price || 0}</div>
             </div>
             <div>
               <div className="text-sm text-muted-foreground">Discount</div>
-              <div className="font-medium">-${order.discount || 0}</div>
+              <div className="font-medium">-KWD {order.discount || 0}</div>
             </div>
             <div>
               <div className="text-sm text-muted-foreground">Shipping</div>
-              <div className="font-medium">${order.shippingCharges || 0}</div>
+              <div className="font-medium">KWD {order.shippingCharges || 0}</div>
             </div>
             <div>
               <div className="text-sm text-muted-foreground">Total</div>
-              <div className="font-semibold text-lg">${amount}</div>
+              <div className="font-semibold text-lg">KWD {amount}</div>
             </div>
           </div>
         </Card>
@@ -298,7 +298,14 @@ export default function OrderDetailPage() {
                         <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
                           <div>
                             <div className="text-muted-foreground">Variant</div>
-                            <div className="font-medium">{variantInfo?.color || '-'}</div>
+                            {variantInfo?.color ? (
+                              <div className="flex items-center gap-2 mt-1">
+                                <div className="h-6 w-6 rounded border border-muted" style={{ backgroundColor: variantInfo.color }}></div>
+                                <span className="font-mono text-xs">{variantInfo.color}</span>
+                              </div>
+                            ) : (
+                              <div className="font-medium">-</div>
+                            )}
                           </div>
                           <div>
                             <div className="text-muted-foreground">Quantity</div>
@@ -306,16 +313,16 @@ export default function OrderDetailPage() {
                           </div>
                           <div>
                             <div className="text-muted-foreground">Unit Price</div>
-                            <div className="font-medium">${variantInfo?.price || it.price || 0}</div>
+                            <div className="font-medium">KWD {variantInfo?.price || it.price || 0}</div>
                           </div>
                           <div>
                             <div className="text-muted-foreground">Subtotal</div>
-                            <div className="font-medium">${(Number(it.price || 0) * Number(it.quantity || 1))}</div>
+                            <div className="font-medium">KWD {(Number(it.price || 0) * Number(it.quantity || 1))}</div>
                           </div>
                           {it.discount && (
                             <div>
                               <div className="text-muted-foreground">Discount</div>
-                              <div className="font-medium">-${it.discount}</div>
+                              <div className="font-medium">-KWD {it.discount}</div>
                             </div>
                           )}
                         </div>

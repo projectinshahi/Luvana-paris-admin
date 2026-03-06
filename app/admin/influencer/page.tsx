@@ -133,7 +133,12 @@ export default function InfluencerPage() {
                     </td>
                     <td className="px-4 py-3 align-top">
                       <div className="font-medium">{inf.variant.nameEnglish}</div>
-                      {inf.variant.color && <div className="text-sm text-muted-foreground">{inf.variant.color}</div>}
+                      {inf.variant.color && (
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="h-5 w-5 rounded border border-muted" style={{ backgroundColor: inf.variant.color }}></div>
+                          <span className="font-mono text-xs text-muted-foreground">{inf.variant.color}</span>
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 align-top">
                       <a href={inf.videoUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm truncate max-w-xs block">
@@ -142,7 +147,7 @@ export default function InfluencerPage() {
                     </td>
                     <td className="px-4 py-3 align-top">
                       <button
-                        className={`px-3 py-1 rounded text-sm font-medium ${inf.status === 'active' ? 'bg-green-600 text-white' : 'bg-gray-200 text-muted-foreground'}`}
+                        className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${inf.status === 'active' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                         onClick={() => toggleStatus(inf._id)}
                       >
                         {inf.status}
@@ -150,8 +155,8 @@ export default function InfluencerPage() {
                     </td>
                     <td className="px-4 py-3 align-top">
                       <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => { setEditing(inf); setOpen(true); }}>Edit</Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(inf._id)}>Delete</Button>
+                        <Button className="bg-blue-600 hover:bg-blue-700 text-white" size="sm" onClick={() => { setEditing(inf); setOpen(true); }}>Edit</Button>
+                        <Button className="bg-red-600 hover:bg-red-700 text-white" size="sm" onClick={() => handleDelete(inf._id)}>Delete</Button>
                       </div>
                     </td>
                   </tr>

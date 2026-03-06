@@ -69,7 +69,7 @@ export default function ProductDetailPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-semibold">Product: {product?.nameEnglish}</h2>
             <div className="flex items-center gap-2">
-            <Link href={`/admin/product/${id}/edit`}><Button variant="outline">Edit Product</Button></Link>
+            <Link href={`/admin/product/${id}/edit`}><Button className="bg-blue-600 hover:bg-blue-700 text-white">Edit Product</Button></Link>
             <Link href={`/admin/product/${id}/variant/new`}><Button><Plus className="mr-2 h-4 w-4" />New Variant</Button></Link>
           </div>
         </div>
@@ -97,8 +97,8 @@ export default function ProductDetailPage() {
                     <td className="px-4 py-3 align-top">{v.status || '-'}</td>
                     <td className="px-4 py-3 align-top">
                       <div className="flex items-center gap-2">
-                        <Link href={`/admin/product/${id}/variant/${v.id}/edit`}><Button variant="outline" size="sm">Edit</Button></Link>
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(v.id)}>Delete</Button>
+                        <Link href={`/admin/product/${id}/variant/${v.id}/edit`}><Button className="bg-blue-600 hover:bg-blue-700 text-white" size="sm">Edit</Button></Link>
+                        <Button className="bg-red-600 hover:bg-red-700 text-white" size="sm" onClick={() => handleDelete(v.id)}>Delete</Button>
                       </div>
                     </td>
                   </tr>

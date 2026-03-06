@@ -224,7 +224,7 @@ export default function OrdersPage() {
                   <tr key={o.id} className="border-t">
                     <td className="px-4 py-3 align-top font-medium">{o.orderId}</td>
                     <td className="px-4 py-3 align-top">{o.customerName || '-'}</td>
-                    <td className="px-4 py-3 align-top">{Number(o.price || 0) - Number(o.discount || 0) + Number(o.shippingCharges || 0)}</td>
+                    <td className="px-4 py-3 align-top">KWD {Number(o.price || 0) - Number(o.discount || 0) + Number(o.shippingCharges || 0)}</td>
                     <td className="px-4 py-3 align-top">
                       <select 
                         value={o.paymentStatus || 'pending'} 
@@ -256,7 +256,7 @@ export default function OrdersPage() {
                     </td>
                     <td className="px-4 py-3 align-top">
                       <div className="flex items-center gap-2">
-                        <Link href={`/admin/order/${o.id}`}><Button variant="outline" size="sm">View</Button></Link>
+                        <Link href={`/admin/order/${o.id}`}><Button className="bg-purple-600 hover:bg-purple-700 text-white" size="sm">View</Button></Link>
                       </div>
                     </td>
                   </tr>
