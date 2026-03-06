@@ -93,137 +93,167 @@ export default function LoginPage() {
 
   return (
     <AuthProvider>
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-b from-slate-50 to-slate-100">
-      <motion.div
-        variants={slideUp}
-        initial="initial"
-        animate="animate"
-        className="w-full max-w-md px-4 relative z-10"
-      >
-        <Card className="p-8 backdrop-blur-sm bg-white/80 shadow-xl">
-          <motion.div 
-            className="mb-8 text-center"
-            variants={slideUp}
-            initial="initial"
-            animate="animate"
-            transition={{ delay: 0.2 }}
-          >
-            <div className="flex justify-center mb-4">
-              <motion.div
-                className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center"
-                animate={{ rotate: 360 }}
-                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-              >
-                <span className="text-white text-2xl font-bold">L</span>
-              </motion.div>
-            </div>
-            <h1 className="text-2xl font-bold mb-2 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              Welcome Back
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Sign in to continue to your dashboard
-            </p>
-          </motion.div>
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+        {/* Animated background elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <motion.div
+            className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl"
+            animate={{ y: [0, 50, 0], x: [0, 30, 0] }}
+            transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <motion.div
+            className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl"
+            animate={{ y: [0, -50, 0], x: [0, -30, 0] }}
+            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <motion.div
+            className="absolute top-1/2 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 20, repeat: Infinity, linear: true }}
+          />
+        </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {error && (
+        {/* Main content */}
+        <motion.div
+          variants={slideUp}
+          initial="initial"
+          animate="animate"
+          className="w-full max-w-md px-4 relative z-10"
+        >
+          <Card className="p-8 backdrop-blur-xl bg-white/10 border border-white/20 shadow-2xl rounded-3xl">
+            <motion.div 
+              className="mb-8 text-center"
+              variants={slideUp}
+              initial="initial"
+              animate="animate"
+              transition={{ delay: 0.2 }}
+            >
+              <div className="flex justify-center mb-6">
+                <motion.div
+                  className="relative"
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-3xl blur-lg opacity-75" />
+                  <div className="relative w-20 h-20 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-3xl flex items-center justify-center shadow-2xl">
+                    <span className="text-white text-3xl font-bold">L</span>
+                  </div>
+                </motion.div>
+              </div>
+              <h1 className="text-3xl font-bold mb-3 bg-gradient-to-r from-white via-blue-200 to-cyan-200 bg-clip-text text-transparent">
+                Welcome Back
+              </h1>
+              <p className="text-sm text-blue-100/70">
+                Sign in to access your admin dashboard
+              </p>
+            </motion.div>
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {error && (
+                <motion.div
+                  variants={fadeIn}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                >
+                  <Alert className="bg-red-500/20 border border-red-500/30 text-red-200">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                </motion.div>
+              )}
+
               <motion.div
-                variants={fadeIn}
+                variants={slideUp}
                 initial="initial"
                 animate="animate"
-                exit="exit"
+                transition={{ delay: 0.3 }}
               >
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
+                <label className="text-sm font-medium text-white/80 mb-2 block">Email Address</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-blue-300" />
+                  <Input
+                    name="email"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    className="pl-11 bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:border-blue-400 focus:bg-white/15 rounded-xl transition-all"
+                    disabled={isLoading}
+                  />
+                </div>
               </motion.div>
-            )}
 
-            <motion.div
-              variants={slideUp}
-              initial="initial"
-              animate="animate"
-              transition={{ delay: 0.3 }}
-            >
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  name="email"
-                  type="email"
-                  placeholder="Enter your email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  className="pl-10"
-                  disabled={isLoading}
-                />
-              </div>
-            </motion.div>
-
-            <motion.div
-              variants={slideUp}
-              initial="initial"
-              animate="animate"
-              transition={{ delay: 0.4 }}
-            >
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  className="pl-10"
-                  disabled={isLoading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {showPassword ? (
-                    <EyeOffIcon className="h-4 w-4" />
-                  ) : (
-                    <EyeIcon className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-            </motion.div>
-
-     
-
-            <motion.div
-              variants={slideUp}
-              initial="initial"
-              animate="animate"
-              transition={{ delay: 0.6 }}
-            >
-              <Button
-                type="submit"
-                className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
-                disabled={isLoading}
+              <motion.div
+                variants={slideUp}
+                initial="initial"
+                animate="animate"
+                transition={{ delay: 0.4 }}
               >
-                {isLoading ? (
-                  <motion.div
-                    variants={fadeIn}
-                    initial="initial"
-                    animate="animate"
-                    exit="exit"
-                    className="flex items-center justify-center"
+                <label className="text-sm font-medium text-white/80 mb-2 block">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-blue-300" />
+                  <Input
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    className="pl-11 pr-11 bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:border-blue-400 focus:bg-white/15 rounded-xl transition-all"
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-300 hover:text-blue-200 transition-colors"
                   >
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Signing in...
-                  </motion.div>
-                ) : (
-                  'Sign in'
-                )}
-              </Button>
-            </motion.div>
-          </form>
+                    {showPassword ? (
+                      <EyeOffIcon className="h-5 w-5" />
+                    ) : (
+                      <EyeIcon className="h-5 w-5" />
+                    )}
+                  </button>
+                </div>
+              </motion.div>
 
-        </Card>
-      </motion.div>
-    </div>
+              <motion.div
+                variants={slideUp}
+                initial="initial"
+                animate="animate"
+                transition={{ delay: 0.5 }}
+                className="pt-2"
+              >
+                <Button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600 hover:from-blue-500 hover:via-cyan-400 hover:to-blue-500 text-white font-semibold rounded-xl py-3 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <motion.div
+                      variants={fadeIn}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                      className="flex items-center justify-center"
+                    >
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Signing in...
+                    </motion.div>
+                  ) : (
+                    'Sign in'
+                  )}
+                </Button>
+              </motion.div>
+            </form>
+
+            {/* Decorative line */}
+            <div className="mt-8 pt-6 border-t border-white/10">
+              <p className="text-xs text-white/50 text-center">
+                Luvana Paris Admin Dashboard
+              </p>
+            </div>
+          </Card>
+        </motion.div>
+      </div>
     </AuthProvider>
   );
 }
