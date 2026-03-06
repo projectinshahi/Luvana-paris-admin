@@ -291,23 +291,36 @@ export default function ProductListPage() {
             </table>
           )}
           {items.length > 0 && (
-            <div className="mt-4 flex items-center justify-between">
+            <div className="mt-6 flex items-center justify-between">
               <div className="text-sm text-muted-foreground">
                 Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
                 {Math.min(pagination.page * pagination.limit, pagination.totalItems)} of{" "}
                 {pagination.totalItems} products
               </div>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setPage(Math.max(1, page - 1))}
                   disabled={page === 1}
                 >
-                  Previous
+                  ← Previous
                 </Button>
-                <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded">
-                  Page {pagination.page} of {pagination.totalPages}
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setPage(p)}
+                      className={`px-3 py-1 rounded text-sm font-medium ${
+                        p === pagination.page
+                          ? 'bg-primary text-white'
+                          : 'border border-muted-foreground text-muted-foreground hover:bg-muted'
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      disabled={false}
+                    >
+                      {p}
+                    </button>
+                  ))}
                 </div>
                 <Button
                   variant="outline"
@@ -315,7 +328,7 @@ export default function ProductListPage() {
                   onClick={() => setPage(Math.min(pagination.totalPages, page + 1))}
                   disabled={page === pagination.totalPages}
                 >
-                  Next
+                  Next →
                 </Button>
               </div>
             </div>
