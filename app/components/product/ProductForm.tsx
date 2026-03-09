@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -28,8 +29,8 @@ type ProductPayload = {
   isNew?: boolean;
   status?: "active" | "inactive";
   description?: DescriptionSection[];
-  imageUrlEnglish?: Array<{ imageUrl: string; publicId?: string }>;
-  imageUrlArabic?: Array<{ imageUrl: string; publicId?: string }>;
+  // imageUrlEnglish?: Array<{ imageUrl: string; publicId?: string }>;
+  // imageUrlArabic?: Array<{ imageUrl: string; publicId?: string }>;
 };
 
 const STORAGE_KEY = "lp:products";
@@ -47,8 +48,8 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
     isNew: false,
     status: "active",
     description: [],
-    imageUrlEnglish: [],
-    imageUrlArabic: [],
+    // imageUrlEnglish: [],
+    // imageUrlArabic: [],
   });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -68,7 +69,22 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
   const fetchProduct = async () => {
     try {
       const data = await api.get<any>(`/admin/product/${productId}`);
-      setForm(data);
+      const product = data?.product || data || {};
+      const categoryId =
+        typeof product.category === "string"
+          ? product.category
+          : product.category?._id || product.category?.id || "";
+      const brandId =
+        typeof product.brand === "string"
+          ? product.brand
+          : product.brand?._id || product.brand?.id || "";
+
+      setForm((prev) => ({
+        ...prev,
+        ...product,
+        category: categoryId,
+        brand: brandId,
+      }));
     } catch (error) {
       console.error('Failed to fetch product:', error);
     } finally {
@@ -187,56 +203,56 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
     }));
   };
 
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  // const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  //   const files = e.target.files;
+  //   if (!files || files.length === 0) return;
 
-    const file = files[0];
-    const fieldName = (e.target as HTMLInputElement).name as "imageUrlEnglish" | "imageUrlArabic";
-    setUploading(true);
+  //   const file = files[0];
+  //   const fieldName = (e.target as HTMLInputElement).name as "imageUrlEnglish" | "imageUrlArabic";
+  //   setUploading(true);
 
-    try {
-      const formData = new FormData();
-      formData.append("image", file);
+  //   try {
+  //     const formData = new FormData();
+  //     formData.append("image", file);
 
-      const response = await api.post<{
-        message: string;
-        image: {
-          url: string;
-          publicId: string;
-          width: number;
-          height: number;
-          size: number;
-          format: string;
-        };
-      }>("/admin/general/upload-image", formData);
+  //     const response = await api.post<{
+  //       message: string;
+  //       image: {
+  //         url: string;
+  //         publicId: string;
+  //         width: number;
+  //         height: number;
+  //         size: number;
+  //         format: string;
+  //       };
+  //     }>("/admin/general/upload-image", formData);
 
-      setForm((s) => ({
-        ...s,
-        [fieldName]: [...(s[fieldName] || []), { imageUrl: response.image.url, publicId: response.image.publicId }],
-      }));
-    } catch (error) {
-      console.error("Failed to upload image:", error);
-      alert("Failed to upload image");
-    } finally {
-      setUploading(false);
-      e.target.value = "";
-    }
-  };
+  //     setForm((s) => ({
+  //       ...s,
+  //       [fieldName]: [...(s[fieldName] || []), { imageUrl: response.image.url, publicId: response.image.publicId }],
+  //     }));
+  //   } catch (error) {
+  //     console.error("Failed to upload image:", error);
+  //     alert("Failed to upload image");
+  //   } finally {
+  //     setUploading(false);
+  //     e.target.value = "";
+  //   }
+  // };
 
-  const removeImage = (field: "imageUrlEnglish" | "imageUrlArabic", idx: number) => {
-    setForm((s) => {
-      const current = s[field] || [];
-      const removed = current[idx];
-      if (removed?.publicId) {
-        setDeletedPublicIds((prev) => (prev.includes(removed.publicId as string) ? prev : [...prev, removed.publicId as string]));
-      }
-      return {
-        ...s,
-        [field]: current.filter((_, i) => i !== idx),
-      };
-    });
-  };
+  // const removeImage = (field: "imageUrlEnglish" | "imageUrlArabic", idx: number) => {
+  //   setForm((s) => {
+  //     const current = s[field] || [];
+  //     const removed = current[idx];
+  //     if (removed?.publicId) {
+  //       setDeletedPublicIds((prev) => (prev.includes(removed.publicId as string) ? prev : [...prev, removed.publicId as string]));
+  //     }
+  //     return {
+  //       ...s,
+  //       [field]: current.filter((_, i) => i !== idx),
+  //     };
+  //   });
+  // };
 
   const submit = async () => {
     setSaving(true);
@@ -303,14 +319,29 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <label className="block text-sm text-muted-foreground">Description Sections</label>
-          <Button type="button" variant="outline" size="sm" onClick={addDescriptionSection}>Add Section</Button>
+          <Button
+            type="button"
+            size="sm"
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+            onClick={addDescriptionSection}
+          >
+            <Plus className="mr-1 h-4 w-4" />
+            Add Section
+          </Button>
         </div>
 
         {(form.description || []).map((section, sectionIdx) => (
           <div key={sectionIdx} className="rounded-md border p-3 space-y-3">
             <div className="flex items-center justify-between">
               <div className="text-sm font-medium">Section {sectionIdx + 1}</div>
-              <Button type="button" variant="ghost" size="sm" onClick={() => removeDescriptionSection(sectionIdx)}>Remove</Button>
+              <Button
+                type="button"
+                size="sm"
+                className="bg-red-600 hover:bg-red-700 text-white"
+                onClick={() => removeDescriptionSection(sectionIdx)}
+              >
+                Remove
+              </Button>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -352,14 +383,28 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
                       lang="ar"
                       className="text-right"
                     />
-                    <Button type="button" variant="ghost" size="sm" onClick={() => removeSectionItem(sectionIdx, itemIdx)}>Remove</Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="bg-red-600 hover:bg-red-700 text-white"
+                      onClick={() => removeSectionItem(sectionIdx, itemIdx)}
+                    >
+                      Remove
+                    </Button>
                   </div>
                 </div>
               ))}
             </div>
 
             <div className="flex justify-end">
-              <Button type="button" variant="outline" size="sm" onClick={() => addSectionItem(sectionIdx)}>Add Item</Button>
+              <Button
+                type="button"
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => addSectionItem(sectionIdx)}
+              >
+                Add Item
+              </Button>
             </div>
           </div>
         ))}
@@ -386,7 +431,7 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
         </label>
       </div>
 
-      <div>
+      {/* <div>
         <label className="block text-sm text-muted-foreground mb-1">Images (English)</label>
         <input type="file" name="imageUrlEnglish" accept="image/*" onChange={handleFile} disabled={uploading} />
         <div className="flex gap-2 mt-2">
@@ -397,9 +442,9 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
             </div>
           ))}
         </div>
-      </div>
+      </div> */}
 
-      <div>
+      {/* <div>
         <label className="block text-sm text-muted-foreground mb-1">Images (Arabic)</label>
         <input type="file" name="imageUrlArabic" accept="image/*" onChange={handleFile} disabled={uploading} />
         <div className="flex gap-2 mt-2">
@@ -410,7 +455,7 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
             </div>
           ))}
         </div>
-      </div>
+      </div> */}
 
       <div className="flex items-center gap-2">
         <Button variant="outline" onClick={() => router.push('/admin/product')}>Cancel</Button>
