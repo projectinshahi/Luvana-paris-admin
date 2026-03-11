@@ -27,10 +27,23 @@ type ProductPayload = {
   shortDescriptionArabic?: string;
   isFeatured?: boolean;
   isNew?: boolean;
+  hasVariant?: boolean;
   status?: "active" | "inactive";
   description?: DescriptionSection[];
   // imageUrlEnglish?: Array<{ imageUrl: string; publicId?: string }>;
   // imageUrlArabic?: Array<{ imageUrl: string; publicId?: string }>;
+};
+
+type VariantPayload = {
+  product?: string;
+  nameEnglish?: string;
+  nameArabic?: string;
+  color?: string;
+  stock?: number;
+  price?: number;
+  mrp?: number;
+  imageUrlEnglish?: Array<{ imageUrl: string; publicId?: string }>;
+  imageUrlArabic?: Array<{ imageUrl: string; publicId?: string }>;
 };
 
 const STORAGE_KEY = "lp:products";
@@ -46,6 +59,7 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
     brand: "",
     isFeatured: false,
     isNew: false,
+    hasVariant: true,
     status: "active",
     description: [],
     // imageUrlEnglish: [],
@@ -57,16 +71,32 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
   const [loading, setLoading] = useState(!!productId);
   const [categories, setCategories] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
+  const [hasVariant, setHasVariant] = useState(true);
+  const [variantId, setVariantId] = useState<string | null>(null);
+  const [variantForm, setVariantForm] = useState<VariantPayload>({
+    color: "#000000",
+    stock: 0,
+    price: 0,
+    mrp: 0,
+  });
+  const [existingVariantImageUrlEnglish, setExistingVariantImageUrlEnglish] = useState<Array<{ imageUrl: string; publicId?: string }>>([]);
+  const [existingVariantImageUrlArabic, setExistingVariantImageUrlArabic] = useState<Array<{ imageUrl: string; publicId?: string }>>([]);
+  const [variantImageFilesEnglish, setVariantImageFilesEnglish] = useState<File[]>([]);
+  const [variantImageFilesArabic, setVariantImageFilesArabic] = useState<File[]>([]);
 
   useEffect(() => {
     if (!productId) {
       setLoading(false);
       return;
     }
-    fetchProduct();
+    const init = async () => {
+      const apiHasVariant = await fetchProduct();
+      await fetchProductVariants(apiHasVariant);
+    };
+    init();
   }, [productId]);
 
-  const fetchProduct = async () => {
+  const fetchProduct = async (): Promise<boolean | undefined> => {
     try {
       const data = await api.get<any>(`/admin/product/${productId}`);
       const product = data?.product || data || {};
@@ -85,10 +115,59 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
         category: categoryId,
         brand: brandId,
       }));
+
+      const apiHasVariant = typeof product.hasVariant === "boolean" ? product.hasVariant : undefined;
+      if (apiHasVariant !== undefined) {
+        setHasVariant(apiHasVariant);
+      }
+      return apiHasVariant;
     } catch (error) {
       console.error('Failed to fetch product:', error);
+      return undefined;
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchProductVariants = async (apiHasVariant?: boolean) => {
+    if (!productId) return;
+    try {
+      const data = await api.get<any>(`/admin/product-variant/product/${productId}`);
+      const list = data?.variants || data?.list || data || [];
+      const variants = Array.isArray(list) ? list : [];
+
+      // Use the product API's hasVariant field as the source of truth.
+      // Fall back to inferring from variant count only when the field is absent.
+      const isSingleVariant =
+        apiHasVariant !== undefined ? apiHasVariant === false : variants.length === 1;
+
+      if (isSingleVariant) {
+        setHasVariant(false);
+        const v = variants[0];
+        if (v) {
+          setVariantId(v._id || null);
+          setVariantForm({
+            color: v.color || "#000000",
+            stock: Number(v.stock || 0),
+            price: Number(v.price || 0),
+            mrp: Number(v.mrp || 0),
+          });
+          setExistingVariantImageUrlEnglish(
+            (v.imageUrlEnglish || [])
+              .map((img: any) => ({ imageUrl: img.imageUrl || "", publicId: img.publicId }))
+              .filter((img: any) => img.imageUrl)
+          );
+          setExistingVariantImageUrlArabic(
+            (v.imageUrlArabic || [])
+              .map((img: any) => ({ imageUrl: img.imageUrl || "", publicId: img.publicId }))
+              .filter((img: any) => img.imageUrl)
+          );
+        }
+      } else {
+        setHasVariant(apiHasVariant ?? true);
+      }
+    } catch (error) {
+      console.error("Failed to fetch product variants:", error);
     }
   };
 
@@ -265,11 +344,73 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
         );
       }
 
+      let savedProductId = productId || "";
+      const productPayload: ProductPayload = {
+        ...form,
+        hasVariant,
+      };
+
       if (productId) {
-        await api.put(`/admin/product/${productId}`, form);
+        await api.put(`/admin/product/${productId}`, productPayload);
       } else {
-        await api.post('/admin/product', form);
+        const created = await api.post<any>('/admin/product', productPayload);
+        savedProductId = created?.product?._id || created?._id || created?.id || "";
       }
+
+      if (!hasVariant) {
+        if (!savedProductId) {
+          throw new Error("Product saved but unable to resolve product id for variant.");
+        }
+
+        const uploadFiles = async (files: File[]): Promise<Array<{ imageUrl: string; publicId: string }>> => {
+          if (files.length === 0) return [];
+
+          const uploads = await Promise.all(
+            files.map(async (file) => {
+              const formData = new FormData();
+              formData.append("image", file);
+
+              const response = await api.post<{
+                message: string;
+                image: {
+                  url: string;
+                  publicId: string;
+                  width: number;
+                  height: number;
+                  size: number;
+                  format: string;
+                };
+              }>("/admin/general/upload-image", formData);
+
+              return { imageUrl: response.image.url, publicId: response.image.publicId };
+            })
+          );
+
+          return uploads;
+        };
+
+        const uploadedEnglish = await uploadFiles(variantImageFilesEnglish);
+        const uploadedArabic = await uploadFiles(variantImageFilesArabic);
+
+        const payload: VariantPayload = {
+          product: savedProductId,
+          nameEnglish: form.nameEnglish || "Default Variant",
+          nameArabic: form.nameArabic || "",
+          color: variantForm.color,
+          stock: Number(variantForm.stock || 0),
+          price: Number(variantForm.price || 0),
+          mrp: Number(variantForm.mrp || 0),
+          imageUrlEnglish: existingVariantImageUrlEnglish.concat(uploadedEnglish),
+          imageUrlArabic: existingVariantImageUrlArabic.concat(uploadedArabic),
+        };
+
+        if (variantId) {
+          await api.put(`/admin/product-variant/${variantId}`, payload);
+        } else {
+          await api.post(`/admin/product-variant`, payload);
+        }
+      }
+
       router.push('/admin/product');
     } catch (error) {
       console.error('Failed to save product:', error);
@@ -409,6 +550,139 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
           </div>
         ))}
       </div>
+
+      <div className="rounded-md border p-3">
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            checked={hasVariant}
+            onChange={(e) => setHasVariant(e.target.checked)}
+          />
+          Has Variants (multiple)
+        </label>
+      </div>
+
+      {!hasVariant && (
+        <div className="space-y-4 rounded-md border p-4">
+          <div className="text-sm font-medium">Product Details</div>
+
+          <div>
+            <label className="block text-sm text-muted-foreground mb-1">Color</label>
+            <div className="flex items-center gap-3">
+              <input
+                type="color"
+                value={variantForm.color || "#000000"}
+                onChange={(e) => setVariantForm((s) => ({ ...s, color: e.target.value }))}
+                className="h-10 w-20 rounded cursor-pointer border border-muted"
+              />
+              <span className="text-sm font-mono text-muted-foreground">{variantForm.color || "#000000"}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">Selling Price</label>
+              <Input
+                type="number"
+                value={String(variantForm.price ?? 0)}
+                onChange={(e) => setVariantForm((s) => ({ ...s, price: Number(e.target.value) }))}
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">Actual Price</label>
+              <Input
+                type="number"
+                value={String(variantForm.mrp ?? 0)}
+                onChange={(e) => setVariantForm((s) => ({ ...s, mrp: Number(e.target.value) }))}
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">Stock</label>
+              <Input
+                type="number"
+                value={String(variantForm.stock ?? 0)}
+                onChange={(e) => setVariantForm((s) => ({ ...s, stock: Number(e.target.value) }))}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm text-muted-foreground mb-2">Images (English)</label>
+            {existingVariantImageUrlEnglish.length > 0 && (
+              <div className="mb-3 space-y-2">
+                {existingVariantImageUrlEnglish.map((img, idx) => (
+                  <div key={`sv-en-${idx}`} className="flex items-center gap-2">
+                    <img src={img.imageUrl} alt="preview" className="h-10 w-10 rounded object-cover" />
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="bg-red-600 hover:bg-red-700 text-white"
+                      onClick={() => {
+                        setExistingVariantImageUrlEnglish((prev) => {
+                          const removed = prev[idx];
+                          if (removed?.publicId) {
+                            setDeletedPublicIds((ids) =>
+                              ids.includes(removed.publicId as string) ? ids : [...ids, removed.publicId as string]
+                            );
+                          }
+                          return prev.filter((_, i) => i !== idx);
+                        });
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Input
+              type="file"
+              multiple
+              accept="image/*"
+              onChange={(e) => setVariantImageFilesEnglish(Array.from(e.target.files || []))}
+              disabled={uploading}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-muted-foreground mb-2">Images (Arabic)</label>
+            {existingVariantImageUrlArabic.length > 0 && (
+              <div className="mb-3 space-y-2">
+                {existingVariantImageUrlArabic.map((img, idx) => (
+                  <div key={`sv-ar-${idx}`} className="flex items-center gap-2">
+                    <img src={img.imageUrl} alt="preview" className="h-10 w-10 rounded object-cover" />
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="bg-red-600 hover:bg-red-700 text-white"
+                      onClick={() => {
+                        setExistingVariantImageUrlArabic((prev) => {
+                          const removed = prev[idx];
+                          if (removed?.publicId) {
+                            setDeletedPublicIds((ids) =>
+                              ids.includes(removed.publicId as string) ? ids : [...ids, removed.publicId as string]
+                            );
+                          }
+                          return prev.filter((_, i) => i !== idx);
+                        });
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Input
+              type="file"
+              multiple
+              accept="image/*"
+              onChange={(e) => setVariantImageFilesArabic(Array.from(e.target.files || []))}
+              disabled={uploading}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center gap-6">
         <label className="flex items-center gap-2 text-sm">

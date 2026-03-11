@@ -18,6 +18,7 @@ type Product = {
   nameArabic?: string;
   shortDescriptionEnglish?: string;
   shortDescriptionArabic?: string;
+  hasVariants?: boolean;
   status: "active" | "inactive";
   createdAt: string;
   updatedAt: string;
@@ -281,7 +282,9 @@ export default function ProductListPage() {
                     <td className="px-4 py-3 align-top">
                       <div className="flex items-center gap-2">
                         <Link href={`/admin/product/${p._id}/edit`}><Button className="bg-blue-600 hover:bg-blue-700 text-white" size="sm">Edit</Button></Link>
-                        <Link href={`/admin/product/${p._id}`}><Button className="bg-purple-600 hover:bg-purple-700 text-white" size="sm">Variants</Button></Link>
+                        {p.hasVariants === true ? (
+                          <Link href={`/admin/product/${p._id}`}><Button className="bg-purple-600 hover:bg-purple-700 text-white" size="sm">Variants</Button></Link>
+                        ) : ""}
                         <Button className="bg-red-600 hover:bg-red-700 text-white" size="sm" onClick={() => handleDelete(p._id)}>Delete</Button>
                       </div>
                     </td>
