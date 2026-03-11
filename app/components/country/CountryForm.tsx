@@ -12,6 +12,7 @@ type Country = {
   _id: string;
   nameEnglish: string;
   nameArabic: string;
+  abbreviation?: string;
   flagUrl: string;
   publicId: string;
   currencyValue: string | number;
@@ -29,6 +30,7 @@ export default function CountryForm({ open, onClose, onSave, country }: CountryF
   const [formData, setFormData] = useState({
     nameEnglish: "",
     nameArabic: "",
+    abbreviation: "",
     flagUrl: "",
     publicId: "",
     currencyValue: "",
@@ -45,6 +47,7 @@ export default function CountryForm({ open, onClose, onSave, country }: CountryF
       setFormData({
         nameEnglish: country.nameEnglish || "",
         nameArabic: country.nameArabic || "",
+        abbreviation: country.abbreviation || "",
         flagUrl: country.flagUrl || "",
         publicId: country.publicId || "",
         currencyValue: String(country.currencyValue || ""),
@@ -56,6 +59,7 @@ export default function CountryForm({ open, onClose, onSave, country }: CountryF
       setFormData({
         nameEnglish: "",
         nameArabic: "",
+        abbreviation: "",
         flagUrl: "",
         publicId: "",
         currencyValue: "",
@@ -100,7 +104,7 @@ export default function CountryForm({ open, onClose, onSave, country }: CountryF
   };
 
   const handleSave = async () => {
-    if (!formData.nameEnglish || !formData.nameArabic || !formData.currencyValue) {
+    if (!formData.nameEnglish || !formData.nameArabic || !formData.abbreviation || !formData.currencyValue) {
       alert("Please fill in all required fields");
       return;
     }
@@ -132,6 +136,7 @@ export default function CountryForm({ open, onClose, onSave, country }: CountryF
       const payload = {
         nameEnglish: formData.nameEnglish,
         nameArabic: formData.nameArabic,
+        abbreviation: formData.abbreviation,
         flagUrl: flagUrl,
         publicId: publicId,
         currencyValue: Number(formData.currencyValue),
@@ -187,6 +192,17 @@ export default function CountryForm({ open, onClose, onSave, country }: CountryF
 
           <div className="grid grid-cols-2 gap-4">
             <div>
+              <Label htmlFor="abbreviation">Abbreviation *</Label>
+              <Input
+                id="abbreviation"
+                value={formData.abbreviation}
+                onChange={(e) => setFormData({ ...formData, abbreviation: e.target.value.toUpperCase() })}
+                placeholder="e.g. KW"
+                maxLength={5}
+              />
+            </div>
+
+            <div>
               <Label htmlFor="currencyValue">Currency Value *</Label>
               <Input
                 id="currencyValue"
@@ -197,18 +213,19 @@ export default function CountryForm({ open, onClose, onSave, country }: CountryF
               />
             </div>
 
-            <div>
-              <Label htmlFor="status">Status</Label>
-              <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="status">Status</Label>
+            <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
