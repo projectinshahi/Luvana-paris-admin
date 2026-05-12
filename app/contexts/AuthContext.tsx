@@ -9,6 +9,7 @@ interface User {
   name: string;
   email: string;
   role?: string;
+  permissions?: string[];
 }
 
 interface LoginResponse {
@@ -72,7 +73,7 @@ const login = async (email: string, password: string): Promise<boolean> => {
   try {
     console.log('🔄 Attempting login for:', email);
     
-    const data = await api.post('/admin/login', { email, password });
+    const data: any = await api.post('/admin/login', { email, password });
     console.log('📦 Raw response:', data);
     
     setAuthToken(data.token);
