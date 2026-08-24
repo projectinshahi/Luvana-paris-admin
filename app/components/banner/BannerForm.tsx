@@ -16,9 +16,13 @@ type BannerPayload = {
   descriptionEnglish?: string;
   descriptionArabic?: string;
   imageUrlEnglish?: string;
+  imageMobileUrlEnglish?: string,
   imageUrlArabic?: string;
+  imageMobileUrlArabic?: string;
   publicIdEnglish?: string;
+  publicIdMobileEnglish?: string;
   publicIdArabic?: string;
+  publicIdMobileArabic?: string;
   sortOrder?: number;
   status?: "active" | "inactive";
 };
@@ -91,8 +95,8 @@ export default function BannerForm({
     }
   };
 
-  const deleteImage = (imageType: "imageUrlEnglish" | "imageUrlArabic") => {
-    const publicIdKey = imageType === "imageUrlEnglish" ? "publicIdEnglish" : "publicIdArabic";
+  const deleteImage = (imageType: "imageUrlEnglish" | "imageMobileUrlEnglish" | "imageUrlArabic" | "imageMobileUrlArabic") => {
+    const publicIdKey = imageType === "imageUrlEnglish" ? "publicIdEnglish" : imageType === "imageMobileUrlEnglish" ? "publicIdMobileEnglish" : imageType === "imageUrlArabic" ? "publicIdArabic" : "publicIdMobileArabic";
     const publicId = form[publicIdKey];
     
     if (publicId && !deletedPublicIds.includes(publicId)) {
@@ -182,6 +186,32 @@ export default function BannerForm({
           </div>
 
           <div>
+            <label className="block text-sm text-muted-foreground mb-1">Image Mobile (English)</label>
+            {form.imageMobileUrlEnglish && (
+              <div className="mb-2">
+                <img src={form.imageMobileUrlEnglish} alt="preview" className="h-28 w-48 object-cover rounded" />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="mt-1 text-red-600 hover:text-red-700"
+                  onClick={() => deleteImage("imageMobileUrlEnglish")}
+                >
+                  Remove
+                </Button>
+              </div>
+            )}
+            <input 
+              type="file" 
+              name="imageMobileUrlEnglish" 
+              accept="image/*" 
+              onChange={handleFile} 
+              className="w-full"
+              disabled={uploading}
+            />
+          </div>
+
+          <div>
             <label className="block text-sm text-muted-foreground mb-1">Image (Arabic)</label>
             {form.imageUrlArabic && (
               <div className="mb-2">
@@ -200,6 +230,32 @@ export default function BannerForm({
             <input 
               type="file" 
               name="imageUrlArabic" 
+              accept="image/*" 
+              onChange={handleFile} 
+              className="w-full"
+              disabled={uploading}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-muted-foreground mb-1">Image Mobile (Arabic)</label>
+            {form.imageMobileUrlArabic && (
+              <div className="mb-2">
+                <img src={form.imageMobileUrlArabic} alt="preview" className="h-28 w-48 object-cover rounded" />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="mt-1 text-red-600 hover:text-red-700"
+                  onClick={() => deleteImage("imageMobileUrlArabic")}
+                >
+                  Remove
+                </Button>
+              </div>
+            )}
+            <input 
+              type="file" 
+              name="imageMobileUrlArabic" 
               accept="image/*" 
               onChange={handleFile} 
               className="w-full"
