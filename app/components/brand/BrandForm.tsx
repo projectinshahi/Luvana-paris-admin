@@ -19,9 +19,13 @@ type BrandPayload = {
   logoPublicIdEnglish?: string;
   logoPublicIdArabic?: string;
   brandImageEnglish?: string;
+  brandMobileImageEnglish?: string;
   brandImageArabic?: string;
+  brandMobileImageArabic?: string;
   brandImagePublicIdEnglish?: string;
+  brandMobileImagePublicIdEnglish?: string;
   brandImagePublicIdArabic?: string;
+  brandMobileImagePublicIdArabic?: string;
   status?: "active" | "inactive";
 };
 
@@ -75,15 +79,8 @@ export default function BrandForm({
         };
       }>("/admin/general/upload-image", formData);
 
-      const fieldKey = name as "logoUrlEnglish" | "logoUrlArabic" | "brandImageEnglish" | "brandImageArabic";
-      const publicIdKey =
-        name === "logoUrlEnglish"
-          ? "logoPublicIdEnglish"
-          : name === "logoUrlArabic"
-            ? "logoPublicIdArabic"
-            : name === "brandImageEnglish"
-              ? "brandImagePublicIdEnglish"
-              : "brandImagePublicIdArabic";
+      const fieldKey = name as "logoUrlEnglish" | "logoUrlArabic" | "brandImageEnglish" | "brandMobileImageEnglish" | "brandImageArabic" | "brandMobileImageArabic";
+      const publicIdKey = name === "logoUrlEnglish" ? "logoPublicIdEnglish" : name === "logoUrlArabic" ? "logoPublicIdArabic" : name === "brandImageEnglish" ? "brandImagePublicIdEnglish" : name === "brandMobileImageEnglish" ? "brandMobileImagePublicIdEnglish" : name === "brandImageArabic" ? "brandImagePublicIdArabic" : "brandMobileImagePublicIdArabic";
 
       setForm((s) => ({
         ...s,
@@ -100,8 +97,8 @@ export default function BrandForm({
   };
 
   const deleteImage = (
-    imageKey: "logoUrlEnglish" | "logoUrlArabic" | "brandImageEnglish" | "brandImageArabic",
-    publicIdKey: "logoPublicIdEnglish" | "logoPublicIdArabic" | "brandImagePublicIdEnglish" | "brandImagePublicIdArabic",
+    imageKey: "logoUrlEnglish" | "logoUrlArabic" | "brandImageEnglish" | "brandImageArabic"  | "brandMobileImageEnglish" | "brandMobileImageArabic",
+    publicIdKey: "logoPublicIdEnglish" | "logoPublicIdArabic" | "brandImagePublicIdEnglish" | "brandImagePublicIdArabic" | "brandMobileImagePublicIdEnglish" | "brandMobileImagePublicIdArabic",
   ) => {
     const publicId = form[publicIdKey];
 
@@ -228,6 +225,32 @@ export default function BrandForm({
             </div>
 
             <div>
+              <label className="block text-sm text-muted-foreground mb-1">Brand Image Mobile (English)</label>
+              {form.brandMobileImageEnglish && (
+                <div className="mb-2">
+                  <img src={form.brandMobileImageEnglish} alt="preview" className="h-24 w-24 object-cover rounded" />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="mt-1 text-red-600 hover:text-red-700"
+                    onClick={() => deleteImage("brandMobileImageEnglish", "brandMobileImagePublicIdEnglish")}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              )}
+              <input
+                type="file"
+                name="brandMobileImageEnglish"
+                accept="image/*"
+                onChange={handleFile}
+                className="w-full"
+                disabled={uploading}
+              />
+            </div>
+
+            <div>
               <label className="block text-sm text-muted-foreground mb-1">Brand Image (Arabic)</label>
               {form.brandImageArabic && (
                 <div className="mb-2">
@@ -246,6 +269,32 @@ export default function BrandForm({
               <input
                 type="file"
                 name="brandImageArabic"
+                accept="image/*"
+                onChange={handleFile}
+                className="w-full"
+                disabled={uploading}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">Brand Image Mobile (Arabic)</label>
+              {form.brandMobileImageArabic && (
+                <div className="mb-2">
+                  <img src={form.brandMobileImageArabic} alt="preview" className="h-24 w-24 object-cover rounded" />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="mt-1 text-red-600 hover:text-red-700"
+                    onClick={() => deleteImage("brandMobileImageArabic", "brandMobileImagePublicIdArabic")}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              )}
+              <input
+                type="file"
+                name="brandMobileImageArabic"
                 accept="image/*"
                 onChange={handleFile}
                 className="w-full"
