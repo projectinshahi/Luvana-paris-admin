@@ -30,8 +30,8 @@ type ProductPayload = {
   hasVariant?: boolean;
   status?: "active" | "inactive";
   description?: DescriptionSection[];
-  // imageUrlEnglish?: Array<{ imageUrl: string; publicId?: string }>;
-  // imageUrlArabic?: Array<{ imageUrl: string; publicId?: string }>;
+  imageUrlEnglish?: Array<{ imageUrl: string; publicId?: string }>;
+  imageUrlArabic?: Array<{ imageUrl: string; publicId?: string }>;
 };
 
 type VariantPayload = {
@@ -47,6 +47,7 @@ type VariantPayload = {
 };
 
 const STORAGE_KEY = "lp:products";
+const MAX_IMAGE_FILE_SIZE = 2 * 1024 * 1024; // 2MB
 
 export default function ProductForm({ productId }: { productId?: string } = {}) {
   const router = useRouter();
@@ -282,56 +283,77 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
     }));
   };
 
-  // const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  //   const files = e.target.files;
-  //   if (!files || files.length === 0) return;
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-  //   const file = files[0];
-  //   const fieldName = (e.target as HTMLInputElement).name as "imageUrlEnglish" | "imageUrlArabic";
-  //   setUploading(true);
+    const file = files[0];
+    if (file.size > MAX_IMAGE_FILE_SIZE) {
+      alert("Selected file exceeds 2MB limit. Please choose a smaller file.");
+      e.target.value = "";
+      return;
+    }
 
-  //   try {
-  //     const formData = new FormData();
-  //     formData.append("image", file);
+    const fieldName = (e.target as HTMLInputElement).name as "imageUrlEnglish" | "imageUrlArabic";
+    setUploading(true);
 
-  //     const response = await api.post<{
-  //       message: string;
-  //       image: {
-  //         url: string;
-  //         publicId: string;
-  //         width: number;
-  //         height: number;
-  //         size: number;
-  //         format: string;
-  //       };
-  //     }>("/admin/general/upload-image", formData);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
 
-  //     setForm((s) => ({
-  //       ...s,
-  //       [fieldName]: [...(s[fieldName] || []), { imageUrl: response.image.url, publicId: response.image.publicId }],
-  //     }));
-  //   } catch (error) {
-  //     console.error("Failed to upload image:", error);
-  //     alert("Failed to upload image");
-  //   } finally {
-  //     setUploading(false);
-  //     e.target.value = "";
-  //   }
-  // };
+      const response = await api.post<{
+        message: string;
+        image: {
+          url: string;
+          publicId: string;
+          width: number;
+          height: number;
+          size: number;
+          format: string;
+        };
+      }>("/admin/general/upload-image", formData);
 
-  // const removeImage = (field: "imageUrlEnglish" | "imageUrlArabic", idx: number) => {
-  //   setForm((s) => {
-  //     const current = s[field] || [];
-  //     const removed = current[idx];
-  //     if (removed?.publicId) {
-  //       setDeletedPublicIds((prev) => (prev.includes(removed.publicId as string) ? prev : [...prev, removed.publicId as string]));
-  //     }
-  //     return {
-  //       ...s,
-  //       [field]: current.filter((_, i) => i !== idx),
-  //     };
-  //   });
-  // };
+      setForm((s) => ({
+        ...s,
+        [fieldName]: [...(s[fieldName] || []), { imageUrl: response.image.url, publicId: response.image.publicId }],
+      }));
+    } catch (error) {
+      console.error("Failed to upload image:", error);
+      alert("Failed to upload image");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleVariantImageChange = (e: React.ChangeEvent<HTMLInputElement>, lang: "english" | "arabic") => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const tooLarge = files.filter((f) => f.size > MAX_IMAGE_FILE_SIZE);
+    if (tooLarge.length > 0) {
+      alert("One or more selected files exceed the 2MB limit. Please choose smaller files.");
+      e.target.value = "";
+      return;
+    }
+
+    if (lang === "english") setVariantImageFilesEnglish(files);
+    else setVariantImageFilesArabic(files);
+  };
+
+  const removeImage = (field: "imageUrlEnglish" | "imageUrlArabic", idx: number) => {
+    setForm((s) => {
+      const current = s[field] || [];
+      const removed = current[idx];
+      if (removed?.publicId) {
+        setDeletedPublicIds((prev) => (prev.includes(removed.publicId as string) ? prev : [...prev, removed.publicId as string]));
+      }
+      return {
+        ...s,
+        [field]: current.filter((_, i) => i !== idx),
+      };
+    });
+  };
 
   const submit = async () => {
     setSaving(true);
@@ -639,7 +661,7 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
               type="file"
               multiple
               accept="image/*"
-              onChange={(e) => setVariantImageFilesEnglish(Array.from(e.target.files || []))}
+              onChange={(e) => handleVariantImageChange(e, "english")}
               disabled={uploading}
             />
           </div>
@@ -677,7 +699,7 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
               type="file"
               multiple
               accept="image/*"
-              onChange={(e) => setVariantImageFilesArabic(Array.from(e.target.files || []))}
+              onChange={(e) => handleVariantImageChange(e, "arabic")}
               disabled={uploading}
             />
           </div>
