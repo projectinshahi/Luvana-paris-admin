@@ -27,6 +27,18 @@ type BannerPayload = {
   status?: "active" | "inactive";
 };
 
+// One source of truth for which publicId field belongs to which image slot.
+// Upload and remove both read it, so they cannot drift apart and orphan — or
+// delete — the wrong Cloudinary asset.
+const PUBLIC_ID_KEY = {
+  imageUrlEnglish: "publicIdEnglish",
+  imageMobileUrlEnglish: "publicIdMobileEnglish",
+  imageUrlArabic: "publicIdArabic",
+  imageMobileUrlArabic: "publicIdMobileArabic",
+} as const;
+
+type ImageField = keyof typeof PUBLIC_ID_KEY;
+
 export default function BannerForm({
   open,
   onOpenChange,
@@ -77,9 +89,9 @@ export default function BannerForm({
         } 
       }>("/admin/general/upload-image", formData);
       
-      const fieldKey = name as "imageUrlEnglish" | "imageUrlArabic";
-      const publicIdKey = (name === "imageUrlEnglish" ? "publicIdEnglish" : "publicIdArabic") as "publicIdEnglish" | "publicIdArabic";
-      
+      const fieldKey = name as ImageField;
+      const publicIdKey = PUBLIC_ID_KEY[fieldKey];
+
       setForm((s) => ({
         ...s,
         [fieldKey]: response.image.url,
@@ -87,7 +99,7 @@ export default function BannerForm({
       }));
     } catch (error) {
       console.error("Failed to upload image:", error);
-      alert("Failed to upload image");
+      alert(error instanceof Error ? error.message : "Failed to upload image");
     } finally {
       setUploading(false);
       // Clear the file input
@@ -95,8 +107,8 @@ export default function BannerForm({
     }
   };
 
-  const deleteImage = (imageType: "imageUrlEnglish" | "imageMobileUrlEnglish" | "imageUrlArabic" | "imageMobileUrlArabic") => {
-    const publicIdKey = imageType === "imageUrlEnglish" ? "publicIdEnglish" : imageType === "imageMobileUrlEnglish" ? "publicIdMobileEnglish" : imageType === "imageUrlArabic" ? "publicIdArabic" : "publicIdMobileArabic";
+  const deleteImage = (imageType: ImageField) => {
+    const publicIdKey = PUBLIC_ID_KEY[imageType];
     const publicId = form[publicIdKey];
     
     if (publicId && !deletedPublicIds.includes(publicId)) {

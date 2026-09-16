@@ -319,7 +319,7 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
       }));
     } catch (error) {
       console.error("Failed to upload image:", error);
-      alert("Failed to upload image");
+      alert(error instanceof Error ? error.message : "Failed to upload image");
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -660,7 +660,7 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
             <Input
               type="file"
               multiple
-              accept="image/*"
+              accept="image/*,.heic,.heif,.avif,.webp"
               onChange={(e) => handleVariantImageChange(e, "english")}
               disabled={uploading}
             />
@@ -698,7 +698,7 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
             <Input
               type="file"
               multiple
-              accept="image/*"
+              accept="image/*,.heic,.heif,.avif,.webp"
               onChange={(e) => handleVariantImageChange(e, "arabic")}
               disabled={uploading}
             />
@@ -729,7 +729,7 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
 
       {/* <div>
         <label className="block text-sm text-muted-foreground mb-1">Images (English)</label>
-        <input type="file" name="imageUrlEnglish" accept="image/*" onChange={handleFile} disabled={uploading} />
+        <input type="file" name="imageUrlEnglish" accept="image/*,.heic,.heif,.avif,.webp" onChange={handleFile} disabled={uploading} />
         <div className="flex gap-2 mt-2">
           {(form.imageUrlEnglish || []).map((img, idx) => (
             <div key={idx} className="relative">
@@ -742,7 +742,7 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
 
       {/* <div>
         <label className="block text-sm text-muted-foreground mb-1">Images (Arabic)</label>
-        <input type="file" name="imageUrlArabic" accept="image/*" onChange={handleFile} disabled={uploading} />
+        <input type="file" name="imageUrlArabic" accept="image/*,.heic,.heif,.avif,.webp" onChange={handleFile} disabled={uploading} />
         <div className="flex gap-2 mt-2">
           {(form.imageUrlArabic || []).map((img, idx) => (
             <div key={idx} className="relative">

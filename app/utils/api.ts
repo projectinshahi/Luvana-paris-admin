@@ -21,7 +21,23 @@ export const setAuthToken = (token: string | null) => {
   }
 };
 
+// Matches the API's multer limit. Checked here, before the request leaves the
+// browser, because every form's upload goes through this function — and an
+// oversize body sent through the /api proxy hangs until the proxy times out
+// instead of surfacing the API's 413.
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
 async function fetchWithAuth<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+  if (options.body instanceof FormData) {
+    for (const value of options.body.values()) {
+      if (value instanceof File && value.size > MAX_UPLOAD_BYTES) {
+        throw new Error(
+          `"${value.name}" is ${(value.size / 1048576).toFixed(1)} MB. Maximum upload size is 10 MB.`
+        );
+      }
+    }
+  }
+
   const storedToken = typeof window === 'undefined' ? null : localStorage.getItem('token');
   const token = inMemoryToken || storedToken;
 

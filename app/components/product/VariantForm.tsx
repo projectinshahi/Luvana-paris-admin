@@ -85,7 +85,7 @@ export default function VariantForm({ productId, variantId }: { productId?: stri
       return uploads;
     } catch (error) {
       console.error("Failed to upload images:", error);
-      alert("Failed to upload images");
+      alert(error instanceof Error ? error.message : "Failed to upload images");
       throw error;
     } finally {
       setUploading(false);
@@ -218,7 +218,7 @@ export default function VariantForm({ productId, variantId }: { productId?: stri
         <Input
           type="file"
           multiple
-          accept="image/*"
+          accept="image/*,.heic,.heif,.avif,.webp"
           onChange={(e) => setImageFilesEnglish(Array.from(e.target.files || []))}
           disabled={uploading}
         />
@@ -258,7 +258,7 @@ export default function VariantForm({ productId, variantId }: { productId?: stri
         <Input
           type="file"
           multiple
-          accept="image/*"
+          accept="image/*,.heic,.heif,.avif,.webp"
           onChange={(e) => setImageFilesArabic(Array.from(e.target.files || []))}
           disabled={uploading}
         />
