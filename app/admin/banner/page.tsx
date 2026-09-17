@@ -8,6 +8,8 @@ import { Card } from "@/components/ui/card";
 import BannerForm from "@/components/banner/BannerForm";
 import { api } from "@/utils/api";
 
+// Banner Model
+
 type Banner = {
   _id: string;
   name?: string;
