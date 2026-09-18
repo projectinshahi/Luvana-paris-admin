@@ -21,19 +21,32 @@ export const setAuthToken = (token: string | null) => {
   }
 };
 
+// Carries the HTTP status and, for validation failures, the API's
+// { "<field path>": "<message>" } map so forms can show each message in place.
+export class ApiError extends Error {
+  constructor(message: string, public status = 0, public errors: Record<string, string> = {}) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 // Matches the API's multer limit. Checked here, before the request leaves the
 // browser, because every form's upload goes through this function — and an
 // oversize body sent through the /api proxy hangs until the proxy times out
 // instead of surfacing the API's 413.
-const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
+export const MAX_UPLOAD_MB = MAX_UPLOAD_BYTES / (1024 * 1024);
+/** One wording for every upload site, and for the API's own rejection. */
+export const OVERSIZE_MESSAGE = `Image size must not exceed ${MAX_UPLOAD_MB}MB.`;
+/** The files a form must refuse before it uploads anything. */
+export const oversizeFiles = (files: File[]) => files.filter((f) => f.size > MAX_UPLOAD_BYTES);
 
 async function fetchWithAuth<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   if (options.body instanceof FormData) {
     for (const value of options.body.values()) {
       if (value instanceof File && value.size > MAX_UPLOAD_BYTES) {
-        throw new Error(
-          `"${value.name}" is ${(value.size / 1048576).toFixed(1)} MB. Maximum upload size is 10 MB.`
-        );
+        // Named the file, because a form may be sending several.
+        throw new Error(`"${value.name}" is ${(value.size / 1048576).toFixed(1)}MB. ${OVERSIZE_MESSAGE}`);
       }
     }
   }
@@ -47,20 +60,27 @@ async function fetchWithAuth<T>(endpoint: string, options: RequestOptions = {}):
     ...(options.headers || {}),
   };
 
-  const response = await fetch(getApiUrl(endpoint), {
-    ...options,
-    headers: defaultHeaders,
-  });
+  let response: Response;
+  try {
+    response = await fetch(getApiUrl(endpoint), {
+      ...options,
+      headers: defaultHeaders,
+    });
+  } catch {
+    // fetch only rejects when no response arrived at all (offline, server down, CORS)
+    throw new ApiError("Couldn't reach the server. Check your connection and try again.");
+  }
 
   if (response.status === 401) {
     setAuthToken(null);
     //  window.location.href = '/login';
-    throw new Error('Unauthorized');
+    throw new ApiError('Unauthorized', 401);
   }
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.message || 'API request failed');
+    const fallback = response.status >= 500 ? 'Something went wrong on the server. Please try again.' : 'API request failed';
+    throw new ApiError(error.message || fallback, response.status, error.errors || {});
   }
 
   return response.json();

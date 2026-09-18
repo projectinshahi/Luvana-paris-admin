@@ -1,204 +1,301 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
+import toast from "react-hot-toast";
+import { z } from "zod";
 import { Input } from "@/components/ui/input";
+import { Errors, FieldError, FieldLabel, INVALID, hasError } from "@/components/ui/field";
+import {
+  Lang,
+  MAX_VARIANT_IMAGES,
+  ProductImage,
+  VariantFields,
+  VariantFieldValues,
+  emptyVariantFields,
+} from "@/components/product/VariantFields";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { api } from "@/utils/api";
+import { api, ApiError, OVERSIZE_MESSAGE, oversizeFiles } from "@/utils/api";
+import { cn } from "@/lib/utils";
+import { deleteImages, uploadAll } from "@/utils/productImages";
 
 type DescriptionItem = { description: string };
 
 type DescriptionSection = {
-  titleEnglish?: string;
+  titleEnglish: string;
   titleArabic?: string;
-  descriptionEnglish?: DescriptionItem[];
+  descriptionEnglish: DescriptionItem[];
   descriptionArabic?: DescriptionItem[];
 };
 
-type ProductPayload = {
+type ProductFields = {
+  category: string;
+  brand: string;
+  nameEnglish: string;
+  nameArabic: string;
+  shortDescriptionEnglish: string;
+  shortDescriptionArabic: string;
+  isFeatured: boolean;
+  isNew: boolean;
+  status: "active" | "inactive";
+  description: DescriptionSection[];
+};
+
+/** One editable variant: its fields plus the images chosen for it. */
+type VariantDraft = VariantFieldValues & {
   _id?: string;
-  category?: string;
-  brand?: string;
-  nameEnglish?: string;
-  nameArabic?: string;
-  shortDescriptionEnglish?: string;
-  shortDescriptionArabic?: string;
-  isFeatured?: boolean;
-  isNew?: boolean;
-  hasVariant?: boolean;
-  status?: "active" | "inactive";
-  description?: DescriptionSection[];
-  imageUrlEnglish?: Array<{ imageUrl: string; publicId?: string }>;
-  imageUrlArabic?: Array<{ imageUrl: string; publicId?: string }>;
+  existing: Record<Lang, ProductImage[]>;
+  files: Record<Lang, File[]>;
 };
 
-type VariantPayload = {
-  product?: string;
-  nameEnglish?: string;
-  nameArabic?: string;
-  color?: string;
-  stock?: number;
-  price?: number;
-  mrp?: number;
-  imageUrlEnglish?: Array<{ imageUrl: string; publicId?: string }>;
-  imageUrlArabic?: Array<{ imageUrl: string; publicId?: string }>;
+const emptyVariantDraft = (): VariantDraft => ({
+  ...emptyVariantFields(),
+  existing: { english: [], arabic: [] },
+  files: { english: [], arabic: [] },
+});
+
+const blankSection = (): DescriptionSection => ({
+  titleEnglish: "",
+  titleArabic: "",
+  descriptionEnglish: [{ description: "" }],
+  descriptionArabic: [{ description: "" }],
+});
+
+const emptyProduct: ProductFields = {
+  category: "",
+  brand: "",
+  nameEnglish: "",
+  nameArabic: "",
+  shortDescriptionEnglish: "",
+  shortDescriptionArabic: "",
+  isFeatured: false,
+  isNew: false,
+  status: "active",
+  description: [],
 };
 
-const STORAGE_KEY = "lp:products";
-const MAX_IMAGE_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+// Mirrors the API's rules (luvana-paris-backend/controller/admin/productController.js)
+// and uses the same field paths, so an error from either side shows under the same field.
+const numberField = (required: string) =>
+  z.preprocess((v) => (v === "" ? undefined : Number(v)), z.number({ error: required }));
+
+// Adding a section is optional, but a section that was added has to say
+// something. Arabic stays optional, as it is on the API.
+const descriptionSectionSchema = z.object({
+  titleEnglish: z.string().trim().min(1, "Enter the section title").max(200, "Section title must be 200 characters or fewer"),
+  titleArabic: z.string().trim().max(200, "Section title must be 200 characters or fewer").optional(),
+  descriptionEnglish: z.array(z.object({
+    description: z.string().trim().min(1, "Enter the description or remove this line").max(1000, "Description must be 1000 characters or fewer"),
+  })).min(1, "Add at least one description line").max(50, "Use 50 description lines or fewer"),
+  descriptionArabic: z.array(z.object({
+    description: z.string().trim().max(1000, "Description must be 1000 characters or fewer"),
+  })).max(50, "Use 50 description lines or fewer").optional(),
+});
+
+const productFields = {
+  category: z.string().min(1, "Select a category"),
+  brand: z.string().min(1, "Select a brand"),
+  nameEnglish: z.string().trim().min(1, "Enter the product name").max(200, "Product name must be 200 characters or fewer"),
+  nameArabic: z.string().trim().min(1, "Enter the Arabic product name").max(200, "Arabic product name must be 200 characters or fewer"),
+  shortDescriptionEnglish: z.string().trim().max(500, "Short description must be 500 characters or fewer"),
+  shortDescriptionArabic: z.string().trim().max(500, "Short description must be 500 characters or fewer"),
+  description: z.array(descriptionSectionSchema).max(20, "Use 20 description sections or fewer"),
+};
+
+const variantFields = {
+  color: z.string().regex(/^#[0-9a-f]{6}$/i, "Pick a colour"),
+  price: numberField("Enter the selling price").pipe(z.number().positive("Selling price must be more than 0")),
+  mrp: numberField("Enter the actual price").pipe(z.number().positive("Actual price must be more than 0")),
+  stock: numberField("Enter the stock quantity").pipe(
+    z.number().int("Stock must be a whole number").min(0, "Stock cannot be negative")
+  ),
+  imageUrlEnglish: z.array(z.unknown()).min(1, "Add at least one English product image").max(10, "Use 10 images or fewer"),
+  imageUrlArabic: z.array(z.unknown()).max(10, "Use 10 images or fewer"),
+};
+
+// A product sold in several variants: the same fields, plus a name per variant.
+const createVariantsSchema = z.array(
+  z.object({
+    ...variantFields,
+    nameEnglish: z.string().trim().min(1, "Enter the variant name").max(200, "Variant name must be 200 characters or fewer"),
+    nameArabic: z.string().trim().min(1, "Enter the Arabic variant name").max(200, "Arabic variant name must be 200 characters or fewer"),
+    imageUrlArabic: variantFields.imageUrlArabic.min(1, "Add at least one Arabic product image"),
+  })
+).min(1, "Add at least one variant").max(20, "Use 20 variants or fewer");
+
+// Editing keeps the looser rules: products saved before the create form asked
+// for a colour, short descriptions, sections and Arabic images must stay
+// editable without back-filling all of them first.
+const editSchema = z.object({
+  ...productFields,
+  variant: z.object({
+    ...variantFields,
+    color: variantFields.color.optional(),
+    imageUrlArabic: variantFields.imageUrlArabic.optional(),
+  }).optional(),
+  variants: createVariantsSchema.optional(),
+});
+
+// Creating asks for every field on the form, so none may be left blank.
+const createSchema = z.object({
+  ...productFields,
+  shortDescriptionEnglish: z.string().trim().min(1, "Enter the short description").max(500, "Short description must be 500 characters or fewer"),
+  shortDescriptionArabic: z.string().trim().min(1, "Enter the Arabic short description").max(500, "Short description must be 500 characters or fewer"),
+  description: productFields.description.min(1, "Add at least one description section"),
+  variant: z.object({
+    ...variantFields,
+    imageUrlArabic: variantFields.imageUrlArabic.min(1, "Add at least one Arabic product image"),
+  }).optional(),
+  variants: createVariantsSchema.optional(),
+});
+
+// Errors that have a place in the form; anything else the API reports goes in the toast.
+const FIELD_PATHS = [
+  "category", "brand", "nameEnglish", "nameArabic", "shortDescriptionEnglish", "shortDescriptionArabic",
+  "variant.color", "variant.price", "variant.mrp", "variant.stock", "variant.imageUrlEnglish", "variant.imageUrlArabic",
+];
+
+// "description.0.descriptionEnglish.2.description" and friends are rendered under
+// their own input, so they are shown in place rather than repeated in the toast.
+const hasFieldInForm = (path: string) =>
+  FIELD_PATHS.includes(path) ||
+  ["description", "variants"].some((group) => path === group || path.startsWith(`${group}.`));
+
+const validate = (values: z.input<typeof createSchema>, mode: "create" | "edit"): Errors => {
+  const errors: Errors = {};
+  const result = (mode === "create" ? createSchema : editSchema).safeParse(values);
+  for (const issue of result.success ? [] : result.error.issues) {
+    errors[issue.path.join(".")] ??= issue.message;
+  }
+  // Checked outside the schema so it is reported together with the other errors,
+  // and only when both prices are valid on their own.
+  const comparePrices = (prefix: string, v?: { price?: unknown; mrp?: unknown }) => {
+    if (!v || errors[`${prefix}.price`] || errors[`${prefix}.mrp`]) return;
+    if (Number(v.price) > Number(v.mrp)) {
+      errors[`${prefix}.price`] = "Selling price cannot be higher than the actual price";
+    }
+  };
+  comparePrices("variant", values.variant);
+  (values.variants ?? []).forEach((v, i) => comparePrices(`variants.${i}`, v));
+  return errors;
+};
+
+const toImages = (list: any): ProductImage[] =>
+  (Array.isArray(list) ? list : [])
+    .map((img: any) => ({ imageUrl: img?.imageUrl || "", publicId: img?.publicId }))
+    .filter((img: ProductImage) => img.imageUrl);
+
+const refId = (ref: any): string => (typeof ref === "string" ? ref : ref?._id || ref?.id || "");
+
 
 export default function ProductForm({ productId }: { productId?: string } = {}) {
   const router = useRouter();
-  const [form, setForm] = useState<ProductPayload>({
-    nameEnglish: "",
-    nameArabic: "",
-    shortDescriptionEnglish: "",
-    shortDescriptionArabic: "",
-    category: "",
-    brand: "",
-    isFeatured: false,
-    isNew: false,
-    hasVariant: true,
-    status: "active",
-    description: [],
-    // imageUrlEnglish: [],
-    // imageUrlArabic: [],
-  });
-  const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [deletedPublicIds, setDeletedPublicIds] = useState<string[]>([]);
+  const [form, setForm] = useState<ProductFields>(() =>
+    productId ? emptyProduct : { ...emptyProduct, description: [blankSection()] });
   const [loading, setLoading] = useState(!!productId);
+  const [loadError, setLoadError] = useState("");
+  const [busy, setBusy] = useState<"" | "Uploading images..." | "Saving...">("");
+  const [errors, setErrors] = useState<Errors>({});
   const [categories, setCategories] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
-  const [hasVariant, setHasVariant] = useState(true);
+  // A new product is sold as a single item unless the admin says otherwise, so
+  // its price, stock and images are asked for up front.
+  const [hasVariants, setHasVariants] = useState(false);
   const [variantId, setVariantId] = useState<string | null>(null);
-  const [variantForm, setVariantForm] = useState<VariantPayload>({
-    color: "#000000",
-    stock: 0,
-    price: 0,
-    mrp: 0,
-  });
-  const [existingVariantImageUrlEnglish, setExistingVariantImageUrlEnglish] = useState<Array<{ imageUrl: string; publicId?: string }>>([]);
-  const [existingVariantImageUrlArabic, setExistingVariantImageUrlArabic] = useState<Array<{ imageUrl: string; publicId?: string }>>([]);
-  const [variantImageFilesEnglish, setVariantImageFilesEnglish] = useState<File[]>([]);
-  const [variantImageFilesArabic, setVariantImageFilesArabic] = useState<File[]>([]);
+  const [variantForm, setVariantForm] = useState<VariantFieldValues>(emptyVariantFields());
+  const [existingImages, setExistingImages] = useState<Record<Lang, ProductImage[]>>({ english: [], arabic: [] });
+  const [newFiles, setNewFiles] = useState<Record<Lang, File[]>>({ english: [], arabic: [] });
+  // A product sold in several variants configures them here, during creation,
+  // instead of being saved first and given variants afterwards.
+  const [variants, setVariants] = useState<VariantDraft[]>([emptyVariantDraft()]);
+  // publicIds the saved variant referenced when the form loaded
+  const loadedPublicIds = useRef<string[]>([]);
+  const submitting = useRef(false);
 
   useEffect(() => {
-    if (!productId) {
-      setLoading(false);
-      return;
-    }
-    const init = async () => {
-      const apiHasVariant = await fetchProduct();
-      await fetchProductVariants(apiHasVariant);
+    if (!productId) return;
+    const load = async () => {
+      try {
+        const [product, variants] = await Promise.all([
+          api.get<any>(`/admin/product/${productId}`),
+          api.get<any[]>(`/admin/product-variant/product/${productId}`),
+        ]);
+        setForm({
+          category: refId(product.category),
+          brand: refId(product.brand),
+          nameEnglish: product.nameEnglish || "",
+          nameArabic: product.nameArabic || "",
+          shortDescriptionEnglish: product.shortDescriptionEnglish || "",
+          shortDescriptionArabic: product.shortDescriptionArabic || "",
+          isFeatured: !!product.isFeatured,
+          isNew: !!product.isNew,
+          status: product.status === "inactive" ? "inactive" : "active",
+          description: (product.description || []).map((s: any) => ({
+            titleEnglish: s.titleEnglish || "",
+            titleArabic: s.titleArabic || "",
+            descriptionEnglish: (s.descriptionEnglish || []).map((i: any) => ({ description: i?.description || "" })),
+            descriptionArabic: (s.descriptionArabic || []).map((i: any) => ({ description: i?.description || "" })),
+          })),
+        });
+        setHasVariants(product.hasVariants === true);
+
+        // A single-item product keeps its price, stock and images on one variant.
+        const v = product.hasVariants === true ? undefined : (Array.isArray(variants) ? variants : [])[0];
+        if (v) {
+          const images = { english: toImages(v.imageUrlEnglish), arabic: toImages(v.imageUrlArabic) };
+          setVariantId(v._id);
+          setVariantForm({
+            nameEnglish: v.nameEnglish || "",
+            nameArabic: v.nameArabic || "",
+            color: v.color || "#000000",
+            price: v.price == null ? "" : String(v.price),
+            mrp: v.mrp == null ? "" : String(v.mrp),
+            stock: v.stock == null ? "" : String(v.stock),
+          });
+          setExistingImages(images);
+          loadedPublicIds.current = [...images.english, ...images.arabic].flatMap((img) => img.publicId || []);
+        }
+      } catch (error) {
+        setLoadError(error instanceof Error ? error.message : "Could not load this product.");
+      } finally {
+        setLoading(false);
+      }
     };
-    init();
+    load();
   }, [productId]);
 
-  const fetchProduct = async (): Promise<boolean | undefined> => {
-    try {
-      const data = await api.get<any>(`/admin/product/${productId}`);
-      const product = data?.product || data || {};
-      const categoryId =
-        typeof product.category === "string"
-          ? product.category
-          : product.category?._id || product.category?.id || "";
-      const brandId =
-        typeof product.brand === "string"
-          ? product.brand
-          : product.brand?._id || product.brand?.id || "";
-
-      setForm((prev) => ({
-        ...prev,
-        ...product,
-        category: categoryId,
-        brand: brandId,
-      }));
-
-      const apiHasVariant = typeof product.hasVariant === "boolean" ? product.hasVariant : undefined;
-      if (apiHasVariant !== undefined) {
-        setHasVariant(apiHasVariant);
-      }
-      return apiHasVariant;
-    } catch (error) {
-      console.error('Failed to fetch product:', error);
-      return undefined;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchProductVariants = async (apiHasVariant?: boolean) => {
-    if (!productId) return;
-    try {
-      const data = await api.get<any>(`/admin/product-variant/product/${productId}`);
-      const list = data?.variants || data?.list || data || [];
-      const variants = Array.isArray(list) ? list : [];
-
-      // Use the product API's hasVariant field as the source of truth.
-      // Fall back to inferring from variant count only when the field is absent.
-      const isSingleVariant =
-        apiHasVariant !== undefined ? apiHasVariant === false : variants.length === 1;
-
-      if (isSingleVariant) {
-        setHasVariant(false);
-        const v = variants[0];
-        if (v) {
-          setVariantId(v._id || null);
-          setVariantForm({
-            color: v.color || "#000000",
-            stock: Number(v.stock || 0),
-            price: Number(v.price || 0),
-            mrp: Number(v.mrp || 0),
-          });
-          setExistingVariantImageUrlEnglish(
-            (v.imageUrlEnglish || [])
-              .map((img: any) => ({ imageUrl: img.imageUrl || "", publicId: img.publicId }))
-              .filter((img: any) => img.imageUrl)
-          );
-          setExistingVariantImageUrlArabic(
-            (v.imageUrlArabic || [])
-              .map((img: any) => ({ imageUrl: img.imageUrl || "", publicId: img.publicId }))
-              .filter((img: any) => img.imageUrl)
-          );
-        }
-      } else {
-        setHasVariant(apiHasVariant ?? true);
-      }
-    } catch (error) {
-      console.error("Failed to fetch product variants:", error);
-    }
-  };
-
   useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const data = await api.get<any[]>('/admin/category');
-        setCategories(data || []);
-      } catch (error) {
-        console.error('Failed to fetch categories:', error);
-      }
-    };
-    fetchCategories();
+    Promise.all([api.get<any[]>("/admin/category"), api.get<any[]>("/admin/brand")])
+      .then(([categoryList, brandList]) => {
+        setCategories(Array.isArray(categoryList) ? categoryList : []);
+        setBrands(Array.isArray(brandList) ? brandList : []);
+      })
+      .catch((error) => {
+        toast.error(`Could not load categories and brands. ${error instanceof Error ? error.message : ""}`);
+      });
   }, []);
 
-  useEffect(() => {
-    const fetchBrands = async () => {
-      try {
-        const data = await api.get<any[]>('/admin/brand');
-        setBrands(data || []);
-      } catch (error) {
-        console.error('Failed to fetch brands:', error);
-      }
-    };
-    fetchBrands();
-  }, []);
+  const clearError = (...names: string[]) => {
+    setErrors((e) => {
+      if (!names.some((n) => n in e)) return e;
+      const rest = { ...e };
+      names.forEach((n) => delete rest[n]);
+      return rest;
+    });
+  };
+
+  const showErrors = (found: Errors) => {
+    flushSync(() => setErrors(found));
+    document.querySelector("[data-field-error]")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+    const { name, value } = e.target;
     setForm((s) => ({ ...s, [name]: value }));
+    clearError(name);
   };
 
   const handleCheckbox = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -206,35 +303,33 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
     setForm((s) => ({ ...s, [name]: checked }));
   };
 
+  const setVariantField = (name: keyof VariantFieldValues, value: string) => {
+    setVariantForm((s) => ({ ...s, [name]: value }));
+    clearError(`variant.${name}`, "variant");
+  };
+
   const addDescriptionSection = () => {
     setForm((s) => ({
       ...s,
-      description: [
-        ...(s.description || []),
-        {
-          titleEnglish: "",
-          titleArabic: "",
-          descriptionEnglish: [{ description: "" }],
-          descriptionArabic: [{ description: "" }],
-        },
-      ],
+      description: [...s.description, blankSection()],
     }));
   };
 
   const removeDescriptionSection = (sectionIdx: number) => {
     setForm((s) => ({
       ...s,
-      description: (s.description || []).filter((_, i) => i !== sectionIdx),
+      description: s.description.filter((_, i) => i !== sectionIdx),
     }));
   };
 
   const updateSectionField = (sectionIdx: number, field: "titleEnglish" | "titleArabic", value: string) => {
     setForm((s) => ({
       ...s,
-      description: (s.description || []).map((section, i) =>
+      description: s.description.map((section, i) =>
         i === sectionIdx ? { ...section, [field]: value } : section
       ),
     }));
+    clearError(`description.${sectionIdx}.${field}`);
   };
 
   const updateSectionItem = (
@@ -245,20 +340,20 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
   ) => {
     setForm((s) => ({
       ...s,
-      description: (s.description || []).map((section, i) => {
+      description: s.description.map((section, i) => {
         if (i !== sectionIdx) return section;
-        const items = (section[lang] || []).map((item, idx) =>
-          idx === itemIdx ? { ...item, description: value } : item
-        );
+        const items = [...(section[lang] || [])];
+        items[itemIdx] = { ...items[itemIdx], description: value };
         return { ...section, [lang]: items };
       }),
     }));
+    clearError(`description.${sectionIdx}.${lang}.${itemIdx}.description`, `description.${sectionIdx}.${lang}`);
   };
 
   const addSectionItem = (sectionIdx: number) => {
     setForm((s) => ({
       ...s,
-      description: (s.description || []).map((section, i) => {
+      description: s.description.map((section, i) => {
         if (i !== sectionIdx) return section;
         return {
           ...section,
@@ -272,7 +367,7 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
   const removeSectionItem = (sectionIdx: number, itemIdx: number) => {
     setForm((s) => ({
       ...s,
-      description: (s.description || []).map((section, i) => {
+      description: s.description.map((section, i) => {
         if (i !== sectionIdx) return section;
         return {
           ...section,
@@ -283,217 +378,280 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
     }));
   };
 
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    const file = files[0];
-    if (file.size > MAX_IMAGE_FILE_SIZE) {
-      alert("Selected file exceeds 2MB limit. Please choose a smaller file.");
-      e.target.value = "";
-      return;
-    }
-
-    const fieldName = (e.target as HTMLInputElement).name as "imageUrlEnglish" | "imageUrlArabic";
-    setUploading(true);
-
-    try {
-      const formData = new FormData();
-      formData.append("image", file);
-
-      const response = await api.post<{
-        message: string;
-        image: {
-          url: string;
-          publicId: string;
-          width: number;
-          height: number;
-          size: number;
-          format: string;
-        };
-      }>("/admin/general/upload-image", formData);
-
-      setForm((s) => ({
-        ...s,
-        [fieldName]: [...(s[fieldName] || []), { imageUrl: response.image.url, publicId: response.image.publicId }],
-      }));
-    } catch (error) {
-      console.error("Failed to upload image:", error);
-      alert(error instanceof Error ? error.message : "Failed to upload image");
-    } finally {
-      setUploading(false);
-      e.target.value = "";
-    }
+  /** Names the oversize files, or null when every file is within the limit. */
+  const oversizeError = (files: File[]) => {
+    const tooLarge = oversizeFiles(files);
+    if (!tooLarge.length) return null;
+    return `${tooLarge.map((f) => `"${f.name}"`).join(", ")} ${tooLarge.length > 1 ? "are" : "is"} too large. ${OVERSIZE_MESSAGE}`;
   };
 
-  const handleVariantImageChange = (e: React.ChangeEvent<HTMLInputElement>, lang: "english" | "arabic") => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-
-    const tooLarge = files.filter((f) => f.size > MAX_IMAGE_FILE_SIZE);
-    if (tooLarge.length > 0) {
-      alert("One or more selected files exceed the 2MB limit. Please choose smaller files.");
-      e.target.value = "";
-      return;
-    }
-
-    if (lang === "english") setVariantImageFilesEnglish(files);
-    else setVariantImageFilesArabic(files);
-  };
-
-  const removeImage = (field: "imageUrlEnglish" | "imageUrlArabic", idx: number) => {
-    setForm((s) => {
-      const current = s[field] || [];
-      const removed = current[idx];
-      if (removed?.publicId) {
-        setDeletedPublicIds((prev) => (prev.includes(removed.publicId as string) ? prev : [...prev, removed.publicId as string]));
-      }
+  /**
+   * Files picked now are added to the ones already chosen, so the different
+   * views of a variant can be gathered over several picks. The input is cleared
+   * each time, both so re-picking the same file still fires and so the list
+   * shown is the state, not the browser's last selection.
+   */
+  const addFiles = (
+    current: { existing: ProductImage[]; files: File[] },
+    picked: File[],
+    field: string
+  ): { files?: File[]; error?: string } => {
+    const tooLarge = oversizeError(picked);
+    if (tooLarge) return { error: tooLarge };
+    const room = MAX_VARIANT_IMAGES - current.existing.length - current.files.length;
+    if (picked.length > room) {
       return {
-        ...s,
-        [field]: current.filter((_, i) => i !== idx),
+        error: room > 0
+          ? `Only ${room} more image${room > 1 ? "s" : ""} can be added. Use ${MAX_VARIANT_IMAGES} images or fewer.`
+          : `Use ${MAX_VARIANT_IMAGES} images or fewer. Remove one before adding another.`,
       };
+    }
+    return { files: [...current.files, ...picked] };
+  };
+
+  const handleVariantImageChange = (lang: Lang, e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(e.target.files || []);
+    e.target.value = "";
+    const field = lang === "english" ? "variant.imageUrlEnglish" : "variant.imageUrlArabic";
+    const { files, error } = addFiles({ existing: existingImages[lang], files: newFiles[lang] }, picked, field);
+    if (error) {
+      setErrors((s) => ({ ...s, [field]: error }));
+      return;
+    }
+    setNewFiles((s) => ({ ...s, [lang]: files! }));
+    clearError(field, "variant");
+  };
+
+  const removeVariantFile = (lang: Lang, idx: number) =>
+    setNewFiles((s) => ({ ...s, [lang]: s[lang].filter((_, i) => i !== idx) }));
+
+  // ---- the same three handlers, for one variant of a multi-variant product
+  const patchVariant = (idx: number, patch: Partial<VariantDraft>) =>
+    setVariants((list) => list.map((v, i) => (i === idx ? { ...v, ...patch } : v)));
+
+  const setVariantAt = (idx: number, name: keyof VariantFieldValues, value: string) => {
+    patchVariant(idx, { [name]: value } as Partial<VariantDraft>);
+    clearError(`variants.${idx}.${name}`, `variants.${idx}`, "variants");
+  };
+
+  const variantFilesAt = (idx: number, lang: Lang, e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(e.target.files || []);
+    e.target.value = "";
+    const variant = variants[idx];
+    const field = `variants.${idx}.${lang === "english" ? "imageUrlEnglish" : "imageUrlArabic"}`;
+    const { files, error } = addFiles({ existing: variant.existing[lang], files: variant.files[lang] }, picked, field);
+    if (error) {
+      setErrors((s) => ({ ...s, [field]: error }));
+      return;
+    }
+    patchVariant(idx, { files: { ...variant.files, [lang]: files! } });
+    clearError(field, "variants");
+  };
+
+  const removeVariantFileAt = (idx: number, lang: Lang, fileIdx: number) =>
+    patchVariant(idx, {
+      files: { ...variants[idx].files, [lang]: variants[idx].files[lang].filter((_, i) => i !== fileIdx) },
     });
+
+  const removeVariantImageAt = (idx: number, lang: Lang, imageIdx: number) =>
+    patchVariant(idx, {
+      existing: { ...variants[idx].existing, [lang]: variants[idx].existing[lang].filter((_, i) => i !== imageIdx) },
+    });
+
+  const addVariant = () => setVariants((list) => [...list, emptyVariantDraft()]);
+  const removeVariant = (idx: number) => {
+    setVariants((list) => list.filter((_, i) => i !== idx));
+    // Messages are keyed by index, so those below the removed row would point at the wrong one.
+    setErrors((e) => Object.fromEntries(Object.entries(e).filter(([path]) => !path.startsWith("variants"))));
+  };
+
+  const removeExistingImage = (lang: Lang, idx: number) => {
+    setExistingImages((s) => ({ ...s, [lang]: s[lang].filter((_, i) => i !== idx) }));
   };
 
   const submit = async () => {
-    setSaving(true);
-    try {
-      if (deletedPublicIds.length > 0) {
-        await Promise.all(
-          deletedPublicIds.map((publicId) =>
-            api.delete(`/admin/general/delete-image`, { publicId })
-          )
-        );
-      }
+    if (submitting.current) return;
 
-      let savedProductId = productId || "";
-      const productPayload: ProductPayload = {
+    // Images are validated as "what this variant will end up with": the ones it
+    // already had plus the files just chosen, before any upload happens.
+    const withImages = (v: VariantDraft) => ({
+      ...v,
+      imageUrlEnglish: [...v.existing.english, ...v.files.english],
+      imageUrlArabic: [...v.existing.arabic, ...v.files.arabic],
+    });
+    const singleDraft: VariantDraft = { ...variantForm, existing: existingImages, files: newFiles };
+
+    const found = validate({
+      ...form,
+      variant: hasVariants ? undefined : withImages(singleDraft),
+      variants: hasVariants ? variants.map(withImages) : undefined,
+    }, productId ? "edit" : "create");
+    if (Object.keys(found).length) {
+      showErrors(found);
+      toast.error("Please correct the highlighted fields.");
+      return;
+    }
+
+    submitting.current = true;
+    setErrors({});
+    let uploaded: ProductImage[] = [];
+    try {
+      // Every variant's files go up in one batch, so a failure part-way rolls
+      // all of them back rather than leaving orphans in Cloudinary.
+      const drafts = hasVariants ? variants : [singleDraft];
+      const pending = drafts.flatMap((v) => [...v.files.english, ...v.files.arabic]);
+      if (pending.length > 0) {
+        setBusy("Uploading images...");
+        uploaded = await uploadAll(pending);
+      }
+      setBusy("Saving...");
+
+      // Hand each variant back the slice of uploads that belongs to it, in the
+      // order they were queued above.
+      let taken = 0;
+      const variantPayloads = drafts.map((v) => {
+        const english = uploaded.slice(taken, taken + v.files.english.length);
+        taken += v.files.english.length;
+        const arabic = uploaded.slice(taken, taken + v.files.arabic.length);
+        taken += v.files.arabic.length;
+        return {
+          ...(v._id && { _id: v._id }),
+          ...(hasVariants && { nameEnglish: v.nameEnglish, nameArabic: v.nameArabic }),
+          color: v.color,
+          // Sent as typed. The API coerces a non-empty string itself, and
+          // Number("") is 0 — which would turn an empty stock field into a
+          // valid "0 in stock" instead of the error it should be.
+          price: v.price,
+          mrp: v.mrp,
+          stock: v.stock,
+          imageUrlEnglish: [...v.existing.english, ...english],
+          imageUrlArabic: [...v.existing.arabic, ...arabic],
+        };
+      });
+
+      const payload = {
         ...form,
-        hasVariant,
+        hasVariants,
+        // Either shape is saved together with the product, so the API can reject
+        // the whole thing instead of storing half of it.
+        ...(hasVariants
+          ? { variants: variantPayloads }
+          : { variant: { ...(variantId && { _id: variantId }), ...variantPayloads[0] } }),
       };
 
       if (productId) {
-        await api.put(`/admin/product/${productId}`, productPayload);
+        await api.put(`/admin/product/${productId}`, payload);
       } else {
-        const created = await api.post<any>('/admin/product', productPayload);
-        savedProductId = created?.product?._id || created?._id || created?.id || "";
+        await api.post("/admin/product", payload);
       }
 
-      if (!hasVariant) {
-        if (!savedProductId) {
-          throw new Error("Product saved but unable to resolve product id for variant.");
-        }
+      // Only now is it safe to drop images the admin removed: the saved variants no longer use them.
+      const kept = new Set(drafts.flatMap((v) => [...v.existing.english, ...v.existing.arabic]).map((img) => img.publicId));
+      deleteImages(loadedPublicIds.current.filter((id) => !kept.has(id)));
 
-        const uploadFiles = async (files: File[]): Promise<Array<{ imageUrl: string; publicId: string }>> => {
-          if (files.length === 0) return [];
-
-          const uploads = await Promise.all(
-            files.map(async (file) => {
-              const formData = new FormData();
-              formData.append("image", file);
-
-              const response = await api.post<{
-                message: string;
-                image: {
-                  url: string;
-                  publicId: string;
-                  width: number;
-                  height: number;
-                  size: number;
-                  format: string;
-                };
-              }>("/admin/general/upload-image", formData);
-
-              return { imageUrl: response.image.url, publicId: response.image.publicId };
-            })
-          );
-
-          return uploads;
-        };
-
-        const uploadedEnglish = await uploadFiles(variantImageFilesEnglish);
-        const uploadedArabic = await uploadFiles(variantImageFilesArabic);
-
-        const payload: VariantPayload = {
-          product: savedProductId,
-          nameEnglish: form.nameEnglish || "Default Variant",
-          nameArabic: form.nameArabic || "",
-          color: variantForm.color,
-          stock: Number(variantForm.stock || 0),
-          price: Number(variantForm.price || 0),
-          mrp: Number(variantForm.mrp || 0),
-          imageUrlEnglish: existingVariantImageUrlEnglish.concat(uploadedEnglish),
-          imageUrlArabic: existingVariantImageUrlArabic.concat(uploadedArabic),
-        };
-
-        if (variantId) {
-          await api.put(`/admin/product-variant/${variantId}`, payload);
-        } else {
-          await api.post(`/admin/product-variant`, payload);
-        }
-      }
-
-      router.push('/admin/product');
+      toast.success(
+        productId
+          ? "Product updated"
+          : hasVariants
+            ? `Product created with ${variantPayloads.length} variant${variantPayloads.length > 1 ? "s" : ""}`
+            : "Product created"
+      );
+      router.push("/admin/product");
     } catch (error) {
-      console.error('Failed to save product:', error);
-    } finally {
-      setSaving(false);
+      // The API answered with a failure, so nothing references the images just uploaded.
+      // (With no answer at all the save may have gone through, so they are kept.)
+      if (error instanceof ApiError && error.status >= 400) {
+        deleteImages(uploaded.map((img) => img.publicId));
+      }
+      submitting.current = false;
+      setBusy("");
+
+      if (error instanceof ApiError && Object.keys(error.errors).length) {
+        const elsewhere = Object.entries(error.errors)
+          .filter(([path]) => !hasFieldInForm(path))
+          .map(([, message]) => message);
+        showErrors(error.errors);
+        toast.error([error.message, ...elsewhere].join("\n"));
+      } else {
+        toast.error(error instanceof Error ? error.message : "The product could not be saved. Please try again.");
+      }
     }
   };
+
+  if (loading) {
+    return <div className="py-12 text-center text-muted-foreground">Loading product...</div>;
+  }
+
+  if (loadError) {
+    return (
+      <div className="py-12 text-center space-y-4">
+        <div className="text-muted-foreground">Could not load this product: {loadError}</div>
+        <Button type="button" variant="outline" onClick={() => router.push('/admin/product')}>Back to products</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm text-muted-foreground mb-1">Category</label>
-        <select name="category" value={form.category || ''} onChange={handleChange} className="w-full rounded-md border px-3 py-2">
+        <FieldLabel errors={errors} name="category" htmlFor="category">Category</FieldLabel>
+        <select id="category" name="category" value={form.category} onChange={handleChange} aria-invalid={!!errors.category} className={`w-full rounded-md border px-3 py-2 ${INVALID}`}>
           <option value="">-- Select category --</option>
           {categories.map((c) => (<option key={c._id} value={c._id}>{c.nameEnglish}</option>))}
         </select>
+        <FieldError errors={errors} name="category" />
       </div>
 
       <div>
-        <label className="block text-sm text-muted-foreground mb-1">Brand</label>
-        <select name="brand" value={form.brand || ''} onChange={handleChange} className="w-full rounded-md border px-3 py-2">
+        <FieldLabel errors={errors} name="brand" htmlFor="brand">Brand</FieldLabel>
+        <select id="brand" name="brand" value={form.brand} onChange={handleChange} aria-invalid={!!errors.brand} className={`w-full rounded-md border px-3 py-2 ${INVALID}`}>
           <option value="">-- Select brand --</option>
           {brands.map((b) => (<option key={b._id} value={b._id}>{b.nameEnglish}</option>))}
         </select>
+        <FieldError errors={errors} name="brand" />
       </div>
 
       <div>
-        <label className="block text-sm text-muted-foreground mb-1">Name (English)</label>
-        <Input name="nameEnglish" value={form.nameEnglish || ''} onChange={handleChange} />
+        <FieldLabel errors={errors} name="nameEnglish" htmlFor="nameEnglish">Name (English)</FieldLabel>
+        <Input id="nameEnglish" name="nameEnglish" value={form.nameEnglish} onChange={handleChange} maxLength={200} aria-invalid={!!errors.nameEnglish} className={INVALID} />
+        <FieldError errors={errors} name="nameEnglish" />
       </div>
 
       <div>
-        <label className="block text-sm text-muted-foreground mb-1">Name (Arabic)</label>
-        <Input name="nameArabic" value={form.nameArabic || ''} onChange={handleChange} dir="rtl" lang="ar" className="text-right" />
+        <FieldLabel errors={errors} name="nameArabic" htmlFor="nameArabic">Name (Arabic)</FieldLabel>
+        <Input id="nameArabic" name="nameArabic" value={form.nameArabic} onChange={handleChange} maxLength={200} aria-invalid={!!errors.nameArabic} dir="rtl" lang="ar" className={`text-right ${INVALID}`} />
+        <FieldError errors={errors} name="nameArabic" />
       </div>
 
       <div>
-        <label className="block text-sm text-muted-foreground mb-1">Short Description (English)</label>
-        <Textarea name="shortDescriptionEnglish" value={form.shortDescriptionEnglish || ''} onChange={handleChange} />
+        <FieldLabel errors={errors} name="shortDescriptionEnglish" htmlFor="shortDescriptionEnglish">Short Description (English)</FieldLabel>
+        <Textarea id="shortDescriptionEnglish" name="shortDescriptionEnglish" value={form.shortDescriptionEnglish} onChange={handleChange} maxLength={500} aria-invalid={!!errors.shortDescriptionEnglish} className={INVALID} />
+        <FieldError errors={errors} name="shortDescriptionEnglish" />
       </div>
 
       <div>
-        <label className="block text-sm text-muted-foreground mb-1">Short Description (Arabic)</label>
-        <Textarea name="shortDescriptionArabic" value={form.shortDescriptionArabic || ''} onChange={handleChange} dir="rtl" lang="ar" className="text-right" />
+        <FieldLabel errors={errors} name="shortDescriptionArabic" htmlFor="shortDescriptionArabic">Short Description (Arabic)</FieldLabel>
+        <Textarea id="shortDescriptionArabic" name="shortDescriptionArabic" value={form.shortDescriptionArabic} onChange={handleChange} maxLength={500} aria-invalid={!!errors.shortDescriptionArabic} dir="rtl" lang="ar" className={`text-right ${INVALID}`} />
+        <FieldError errors={errors} name="shortDescriptionArabic" />
       </div>
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <label className="block text-sm text-muted-foreground">Description Sections</label>
+          <FieldLabel errors={errors} name="description" className="mb-0">Description Sections</FieldLabel>
           <Button
             type="button"
             size="sm"
             className="bg-blue-600 hover:bg-blue-700 text-white"
             onClick={addDescriptionSection}
+            disabled={form.description.length >= 20}
           >
             <Plus className="mr-1 h-4 w-4" />
             Add Section
           </Button>
         </div>
+        <FieldError errors={errors} name="description" />
 
-        {(form.description || []).map((section, sectionIdx) => (
+        {form.description.map((section, sectionIdx) => (
           <div key={sectionIdx} className="rounded-md border p-3 space-y-3">
             <div className="flex items-center justify-between">
               <div className="text-sm font-medium">Section {sectionIdx + 1}</div>
@@ -509,43 +667,61 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm text-muted-foreground mb-1">Title (English)</label>
+                <FieldLabel errors={errors} name={`description.${sectionIdx}.titleEnglish`}>Title (English)</FieldLabel>
                 <Input
                   value={section.titleEnglish || ""}
+                  maxLength={200}
                   onChange={(e) => updateSectionField(sectionIdx, "titleEnglish", e.target.value)}
+                  aria-invalid={!!errors[`description.${sectionIdx}.titleEnglish`]}
+                  className={INVALID}
                 />
+                <FieldError errors={errors} name={`description.${sectionIdx}.titleEnglish`} />
               </div>
               <div>
-                <label className="block text-sm text-muted-foreground mb-1">Title (Arabic)</label>
+                <FieldLabel errors={errors} name={`description.${sectionIdx}.titleArabic`}>Title (Arabic)</FieldLabel>
                 <Input
                   value={section.titleArabic || ""}
+                  maxLength={200}
                   onChange={(e) => updateSectionField(sectionIdx, "titleArabic", e.target.value)}
                   dir="rtl"
                   lang="ar"
-                  className="text-right"
+                  aria-invalid={!!errors[`description.${sectionIdx}.titleArabic`]}
+                  className={`text-right ${INVALID}`}
                 />
+                <FieldError errors={errors} name={`description.${sectionIdx}.titleArabic`} />
               </div>
             </div>
 
             <div className="space-y-2">
               <div className="grid grid-cols-2 gap-3">
-                <label className="block text-sm text-muted-foreground">Description (English)</label>
-                <label className="block text-sm text-muted-foreground">Description (Arabic)</label>
+                <FieldLabel errors={errors} name={`description.${sectionIdx}.descriptionEnglish`} className="mb-0">Description (English)</FieldLabel>
+                <FieldLabel errors={errors} name={`description.${sectionIdx}.descriptionArabic`} className="mb-0">Description (Arabic)</FieldLabel>
               </div>
               {(section.descriptionEnglish || []).map((item, itemIdx) => (
                 <div key={itemIdx} className="grid grid-cols-2 gap-3 items-start">
-                  <Input
-                    value={item.description || ""}
-                    onChange={(e) => updateSectionItem(sectionIdx, "descriptionEnglish", itemIdx, e.target.value)}
-                  />
-                  <div className="flex items-center gap-2">
+                  <div>
                     <Input
-                      value={((section.descriptionArabic || [])[itemIdx] || {}).description || ""}
-                      onChange={(e) => updateSectionItem(sectionIdx, "descriptionArabic", itemIdx, e.target.value)}
-                      dir="rtl"
-                      lang="ar"
-                      className="text-right"
+                      value={item.description || ""}
+                      maxLength={1000}
+                      onChange={(e) => updateSectionItem(sectionIdx, "descriptionEnglish", itemIdx, e.target.value)}
+                      aria-invalid={!!errors[`description.${sectionIdx}.descriptionEnglish.${itemIdx}.description`]}
+                      className={INVALID}
                     />
+                    <FieldError errors={errors} name={`description.${sectionIdx}.descriptionEnglish.${itemIdx}.description`} />
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1">
+                      <Input
+                        value={((section.descriptionArabic || [])[itemIdx] || {}).description || ""}
+                        maxLength={1000}
+                        onChange={(e) => updateSectionItem(sectionIdx, "descriptionArabic", itemIdx, e.target.value)}
+                        dir="rtl"
+                        lang="ar"
+                        aria-invalid={!!errors[`description.${sectionIdx}.descriptionArabic.${itemIdx}.description`]}
+                        className={`text-right ${INVALID}`}
+                      />
+                      <FieldError errors={errors} name={`description.${sectionIdx}.descriptionArabic.${itemIdx}.description`} />
+                    </div>
                     <Button
                       type="button"
                       size="sm"
@@ -557,6 +733,7 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
                   </div>
                 </div>
               ))}
+              <FieldError errors={errors} name={`description.${sectionIdx}.descriptionEnglish`} />
             </div>
 
             <div className="flex justify-end">
@@ -565,6 +742,7 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
                 size="sm"
                 className="bg-blue-600 hover:bg-blue-700 text-white"
                 onClick={() => addSectionItem(sectionIdx)}
+                disabled={(section.descriptionEnglish || []).length >= 50}
               >
                 Add Item
               </Button>
@@ -577,132 +755,87 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
         <label className="flex items-center gap-2 text-sm font-medium">
           <input
             type="checkbox"
-            checked={hasVariant}
-            onChange={(e) => setHasVariant(e.target.checked)}
+            name="hasVariants"
+            checked={hasVariants}
+            onChange={(e) => {
+              setHasVariants(e.target.checked);
+              setErrors((s) => Object.fromEntries(Object.entries(s).filter(([path]) => !path.startsWith("variant"))));
+            }}
           />
           Has Variants (multiple)
         </label>
       </div>
 
-      {!hasVariant && (
+      {!hasVariants ? (
         <div className="space-y-4 rounded-md border p-4">
-          <div className="text-sm font-medium">Product Details</div>
-
-          <div>
-            <label className="block text-sm text-muted-foreground mb-1">Color</label>
-            <div className="flex items-center gap-3">
-              <input
-                type="color"
-                value={variantForm.color || "#000000"}
-                onChange={(e) => setVariantForm((s) => ({ ...s, color: e.target.value }))}
-                className="h-10 w-20 rounded cursor-pointer border border-muted"
-              />
-              <span className="text-sm font-mono text-muted-foreground">{variantForm.color || "#000000"}</span>
+          <div className={cn("text-sm font-medium", hasError(errors, "variant") && "text-red-600")}>Product Details</div>
+          <VariantFields
+            prefix="variant"
+            idPrefix="variant"
+            values={variantForm}
+            onChange={setVariantField}
+            existing={existingImages}
+            files={newFiles}
+            onFiles={handleVariantImageChange}
+            onRemoveExisting={removeExistingImage}
+            onRemoveFile={removeVariantFile}
+            errors={errors}
+            disabled={!!busy}
+          />
+        </div>
+      ) : (
+        <div className="space-y-4 rounded-md border p-4">
+          <div className="flex items-center justify-between">
+            <div className={cn("text-sm font-medium", hasError(errors, "variants") && "text-red-600")}>
+              Variants ({variants.length})
             </div>
+            <Button
+              type="button"
+              size="sm"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={addVariant}
+              disabled={variants.length >= 20}
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Add Variant
+            </Button>
           </div>
+          <FieldError errors={errors} name="variants" />
 
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-sm text-muted-foreground mb-1">Selling Price</label>
-              <Input
-                type="number"
-                value={String(variantForm.price ?? 0)}
-                onChange={(e) => setVariantForm((s) => ({ ...s, price: Number(e.target.value) }))}
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-muted-foreground mb-1">Actual Price</label>
-              <Input
-                type="number"
-                value={String(variantForm.mrp ?? 0)}
-                onChange={(e) => setVariantForm((s) => ({ ...s, mrp: Number(e.target.value) }))}
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-muted-foreground mb-1">Stock</label>
-              <Input
-                type="number"
-                value={String(variantForm.stock ?? 0)}
-                onChange={(e) => setVariantForm((s) => ({ ...s, stock: Number(e.target.value) }))}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm text-muted-foreground mb-2">Images (English)</label>
-            {existingVariantImageUrlEnglish.length > 0 && (
-              <div className="mb-3 space-y-2">
-                {existingVariantImageUrlEnglish.map((img, idx) => (
-                  <div key={`sv-en-${idx}`} className="flex items-center gap-2">
-                    <img src={img.imageUrl} alt="preview" className="h-10 w-10 rounded object-cover" />
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="bg-red-600 hover:bg-red-700 text-white"
-                      onClick={() => {
-                        setExistingVariantImageUrlEnglish((prev) => {
-                          const removed = prev[idx];
-                          if (removed?.publicId) {
-                            setDeletedPublicIds((ids) =>
-                              ids.includes(removed.publicId as string) ? ids : [...ids, removed.publicId as string]
-                            );
-                          }
-                          return prev.filter((_, i) => i !== idx);
-                        });
-                      }}
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                ))}
+          {variants.map((variant, idx) => (
+            <div key={idx} className="space-y-4 rounded-md border p-3">
+              <div className="flex items-center justify-between">
+                <div className={cn("text-sm font-medium", hasError(errors, `variants.${idx}`) && "text-red-600")}>
+                  Variant {idx + 1}
+                </div>
+                {variants.length > 1 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                    onClick={() => removeVariant(idx)}
+                  >
+                    Remove
+                  </Button>
+                )}
               </div>
-            )}
-            <Input
-              type="file"
-              multiple
-              accept="image/*,.heic,.heif,.avif,.webp"
-              onChange={(e) => handleVariantImageChange(e, "english")}
-              disabled={uploading}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm text-muted-foreground mb-2">Images (Arabic)</label>
-            {existingVariantImageUrlArabic.length > 0 && (
-              <div className="mb-3 space-y-2">
-                {existingVariantImageUrlArabic.map((img, idx) => (
-                  <div key={`sv-ar-${idx}`} className="flex items-center gap-2">
-                    <img src={img.imageUrl} alt="preview" className="h-10 w-10 rounded object-cover" />
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="bg-red-600 hover:bg-red-700 text-white"
-                      onClick={() => {
-                        setExistingVariantImageUrlArabic((prev) => {
-                          const removed = prev[idx];
-                          if (removed?.publicId) {
-                            setDeletedPublicIds((ids) =>
-                              ids.includes(removed.publicId as string) ? ids : [...ids, removed.publicId as string]
-                            );
-                          }
-                          return prev.filter((_, i) => i !== idx);
-                        });
-                      }}
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <Input
-              type="file"
-              multiple
-              accept="image/*,.heic,.heif,.avif,.webp"
-              onChange={(e) => handleVariantImageChange(e, "arabic")}
-              disabled={uploading}
-            />
-          </div>
+              {/* The same block the single-item product uses, so the two cannot drift. */}
+              <VariantFields
+                prefix={`variants.${idx}`}
+                idPrefix={`variant-${idx}`}
+                withNames
+                values={variant}
+                onChange={(field, value) => setVariantAt(idx, field, value)}
+                existing={variant.existing}
+                files={variant.files}
+                onFiles={(lang, e) => variantFilesAt(idx, lang, e)}
+                onRemoveExisting={(lang, imageIdx) => removeVariantImageAt(idx, lang, imageIdx)}
+                onRemoveFile={(lang, fileIdx) => removeVariantFileAt(idx, lang, fileIdx)}
+                errors={errors}
+                disabled={!!busy}
+              />
+            </div>
+          ))}
         </div>
       )}
 
@@ -711,7 +844,7 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
           <input
             type="checkbox"
             name="isFeatured"
-            checked={!!form.isFeatured}
+            checked={form.isFeatured}
             onChange={handleCheckbox}
           />
           Featured
@@ -720,42 +853,16 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
           <input
             type="checkbox"
             name="isNew"
-            checked={!!form.isNew}
+            checked={form.isNew}
             onChange={handleCheckbox}
           />
           New Arrival
         </label>
       </div>
 
-      {/* <div>
-        <label className="block text-sm text-muted-foreground mb-1">Images (English)</label>
-        <input type="file" name="imageUrlEnglish" accept="image/*,.heic,.heif,.avif,.webp" onChange={handleFile} disabled={uploading} />
-        <div className="flex gap-2 mt-2">
-          {(form.imageUrlEnglish || []).map((img, idx) => (
-            <div key={idx} className="relative">
-              <img src={img.imageUrl} className="h-20 w-20 object-cover rounded" alt="preview" />
-              <button type="button" onClick={() => removeImage('imageUrlEnglish', idx)} className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">×</button>
-            </div>
-          ))}
-        </div>
-      </div> */}
-
-      {/* <div>
-        <label className="block text-sm text-muted-foreground mb-1">Images (Arabic)</label>
-        <input type="file" name="imageUrlArabic" accept="image/*,.heic,.heif,.avif,.webp" onChange={handleFile} disabled={uploading} />
-        <div className="flex gap-2 mt-2">
-          {(form.imageUrlArabic || []).map((img, idx) => (
-            <div key={idx} className="relative">
-              <img src={img.imageUrl} className="h-20 w-20 object-cover rounded" alt="preview" />
-              <button type="button" onClick={() => removeImage('imageUrlArabic', idx)} className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">×</button>
-            </div>
-          ))}
-        </div>
-      </div> */}
-
       <div className="flex items-center gap-2">
-        <Button variant="outline" onClick={() => router.push('/admin/product')}>Cancel</Button>
-        <Button onClick={submit} disabled={saving || uploading}>{saving ? 'Saving...' : uploading ? 'Uploading...' : 'Save'}</Button>
+        <Button type="button" variant="outline" onClick={() => router.push('/admin/product')}>Cancel</Button>
+        <Button type="button" onClick={submit} disabled={!!busy} aria-busy={!!busy}>{busy || 'Save'}</Button>
       </div>
     </div>
   );

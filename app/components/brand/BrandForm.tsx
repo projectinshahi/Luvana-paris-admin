@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import toast from "react-hot-toast";
 import { api } from "@/utils/api";
 
 type BrandPayload = {
@@ -112,16 +113,14 @@ export default function BrandForm({
   const submit = async () => {
     setSaving(true);
     try {
-      if (deletedPublicIds.length > 0) {
-        await Promise.all(
-          deletedPublicIds.map((publicId) =>
-            api.delete(`/admin/general/delete-image`, { publicId })
-          )
-        );
-      }
-
       await onSave(form);
+      // Removed images are deleted only once the saved brand no longer uses them.
+      Promise.allSettled(
+        deletedPublicIds.map((publicId) => api.delete(`/admin/general/delete-image`, { publicId }))
+      );
       onOpenChange(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save brand");
     } finally {
       setSaving(false);
     }
