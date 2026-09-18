@@ -1,10 +1,13 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { api } from "@/utils/api";
+import toast from "react-hot-toast";
+import { api, ApiError, OVERSIZE_MESSAGE, oversizeFiles } from "@/utils/api";
+import { ImagePicker, MAX_VARIANT_IMAGES } from "@/components/product/VariantFields";
+import { ProductImage, deleteImages, uploadAll } from "@/utils/productImages";
 
 type VariantPayload = {
   id?: string;
@@ -56,40 +59,40 @@ export default function VariantForm({ productId, variantId }: { productId?: stri
     }
   };
 
-  const uploadFiles = async (files: File[]): Promise<Array<{ imageUrl: string; publicId: string }>> => {
+  /** Uploads every file as one unit; a partial failure cleans up after itself. */
+  const uploadFiles = async (files: File[]) => {
     if (files.length === 0) return [];
     setUploading(true);
-
     try {
-      const uploads = await Promise.all(
-        files.map(async (file) => {
-          const formData = new FormData();
-          formData.append("image", file);
-
-          const response = await api.post<{
-            message: string;
-            image: {
-              url: string;
-              publicId: string;
-              width: number;
-              height: number;
-              size: number;
-              format: string;
-            };
-          }>("/admin/general/upload-image", formData);
-
-          return { imageUrl: response.image.url, publicId: response.image.publicId };
-        })
-      );
-
-      return uploads;
-    } catch (error) {
-      console.error("Failed to upload images:", error);
-      alert(error instanceof Error ? error.message : "Failed to upload images");
-      throw error;
+      return await uploadAll(files);
     } finally {
       setUploading(false);
     }
+  };
+
+  /**
+   * Adds the picked files to the ones already chosen, refusing anything oversize
+   * before it is uploaded and stopping at the per-variant image cap.
+   */
+  const addFiles = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    existing: Array<{ imageUrl: string; publicId?: string }>,
+    files: File[],
+    set: (files: File[]) => void
+  ) => {
+    const picked = Array.from(e.target.files || []);
+    e.target.value = "";
+    const tooLarge = oversizeFiles(picked);
+    if (tooLarge.length > 0) {
+      toast.error(`${tooLarge.map((f) => `"${f.name}"`).join(", ")} ${tooLarge.length > 1 ? "are" : "is"} too large. ${OVERSIZE_MESSAGE}`);
+      return;
+    }
+    const room = MAX_VARIANT_IMAGES - existing.length - files.length;
+    if (picked.length > room) {
+      toast.error(`Use ${MAX_VARIANT_IMAGES} images or fewer. Remove one before adding another.`);
+      return;
+    }
+    set([...files, ...picked]);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -101,19 +104,17 @@ export default function VariantForm({ productId, variantId }: { productId?: stri
     }
   };
 
-  const submit = async () => {
-    setSaving(true);
-    try {
-      if (deletedPublicIds.length > 0) {
-        await Promise.all(
-          deletedPublicIds.map((publicId) =>
-            api.delete(`/admin/general/delete-image`, { publicId })
-          )
-        );
-      }
+  const submitting = useRef(false);
 
-      const uploadedEnglish = await uploadFiles(imageFilesEnglish);
-      const uploadedArabic = await uploadFiles(imageFilesArabic);
+  const submit = async () => {
+    if (submitting.current) return;
+    submitting.current = true;
+    setSaving(true);
+    let uploaded: ProductImage[] = [];
+    try {
+      uploaded = await uploadFiles([...imageFilesEnglish, ...imageFilesArabic]);
+      const uploadedEnglish = uploaded.slice(0, imageFilesEnglish.length);
+      const uploadedArabic = uploaded.slice(imageFilesEnglish.length);
       const finalEnglish = existingImageUrlEnglish.concat(uploadedEnglish);
       const finalArabic = existingImageUrlArabic.concat(uploadedArabic);
 
@@ -134,8 +135,18 @@ export default function VariantForm({ productId, variantId }: { productId?: stri
       } else {
         await api.post(`/admin/product-variant`, payload);
       }
+      // Removed images are deleted only once the saved variant no longer uses them.
+      deleteImages(deletedPublicIds);
+      toast.success(variantId ? "Variant updated" : "Variant created");
       router.push(`/admin/product/${productId}`);
-    } finally {
+    } catch (error) {
+      console.error("Failed to save variant:", error);
+      // The API refused the save, so nothing references the images just uploaded.
+      if (error instanceof ApiError && error.status >= 400) {
+        deleteImages(uploaded.map((img) => img.publicId));
+      }
+      toast.error(error instanceof Error ? error.message : "Failed to save variant");
+      submitting.current = false;
       setSaving(false);
     }
   };
@@ -201,85 +212,27 @@ export default function VariantForm({ productId, variantId }: { productId?: stri
         </div>
       </div>
 
-      <div>
-        <label className="block text-sm text-muted-foreground mb-2">Images (English)</label>
-        {existingImageUrlEnglish.length > 0 && (
-          <div className="mb-3 space-y-2">
-            {existingImageUrlEnglish.map((url, idx) => (
-              <div key={`existing-en-${idx}`} className="flex items-center justify-between gap-3 text-sm">
-                <div className="flex items-center gap-2 min-w-0">
-                  <img src={url.imageUrl} alt="preview" className="h-10 w-10 rounded object-cover" />
-                  <Button variant="outline" type="button" onClick={() => removeExistingImage("en", idx)}>Remove</Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        <Input
-          type="file"
-          multiple
-          accept="image/*,.heic,.heif,.avif,.webp"
-          onChange={(e) => setImageFilesEnglish(Array.from(e.target.files || []))}
-          disabled={uploading}
-        />
-        {imageFilesEnglish.length > 0 && (
-          <div className="mt-3 grid grid-cols-4 gap-2">
-            {imageFilesEnglish.map((file, idx) => (
-              <img
-                key={`new-en-${idx}`}
-                src={URL.createObjectURL(file)}
-                alt="preview"
-                className="h-20 w-20 rounded object-cover"
-              />
-            ))}
-          </div>
-        )}
-        {imageFilesEnglish.length > 0 && (
-          <div className="mt-2 text-sm text-muted-foreground">
-            {imageFilesEnglish.length} file(s) selected
-          </div>
-        )}
-      </div>
+      <ImagePicker
+        id="variant-images-en"
+        label={<label htmlFor="variant-images-en" className="block text-sm text-muted-foreground mb-2">Images (English)</label>}
+        existing={existingImageUrlEnglish}
+        files={imageFilesEnglish}
+        onAdd={(e) => addFiles(e, existingImageUrlEnglish, imageFilesEnglish, setImageFilesEnglish)}
+        onRemoveExisting={(idx) => removeExistingImage("en", idx)}
+        onRemoveFile={(idx) => setImageFilesEnglish(imageFilesEnglish.filter((_, i) => i !== idx))}
+        disabled={uploading || saving}
+      />
 
-      <div>
-        <label className="block text-sm text-muted-foreground mb-2">Images (Arabic)</label>
-        {existingImageUrlArabic.length > 0 && (
-          <div className="mb-3 space-y-2">
-            {existingImageUrlArabic.map((url, idx) => (
-              <div key={`existing-ar-${idx}`} className="flex items-center justify-between gap-3 text-sm">
-                <div className="flex items-center gap-2 min-w-0">
-                  <img src={url.imageUrl} alt="preview" className="h-10 w-10 rounded object-cover" />
-                  <Button variant="outline" type="button" onClick={() => removeExistingImage("ar", idx)}>Remove</Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        <Input
-          type="file"
-          multiple
-          accept="image/*,.heic,.heif,.avif,.webp"
-          onChange={(e) => setImageFilesArabic(Array.from(e.target.files || []))}
-          disabled={uploading}
-        />
-        {imageFilesArabic.length > 0 && (
-          <div className="mt-3 grid grid-cols-4 gap-2">
-            {imageFilesArabic.map((file, idx) => (
-              <img
-                key={`new-ar-${idx}`}
-                src={URL.createObjectURL(file)}
-                alt="preview"
-                className="h-20 w-20 rounded object-cover"
-              />
-            ))}
-          </div>
-        )}
-        {imageFilesArabic.length > 0 && (
-          <div className="mt-2 text-sm text-muted-foreground">
-            {imageFilesArabic.length} file(s) selected
-          </div>
-        )}
-      </div>
+      <ImagePicker
+        id="variant-images-ar"
+        label={<label htmlFor="variant-images-ar" className="block text-sm text-muted-foreground mb-2">Images (Arabic)</label>}
+        existing={existingImageUrlArabic}
+        files={imageFilesArabic}
+        onAdd={(e) => addFiles(e, existingImageUrlArabic, imageFilesArabic, setImageFilesArabic)}
+        onRemoveExisting={(idx) => removeExistingImage("ar", idx)}
+        onRemoveFile={(idx) => setImageFilesArabic(imageFilesArabic.filter((_, i) => i !== idx))}
+        disabled={uploading || saving}
+      />
 
       <div className="flex items-center gap-2">
         <Button variant="outline" onClick={() => router.push(`/admin/product/${productId}`)}>Cancel</Button>

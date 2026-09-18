@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Link from "next/link";
+import toast from "react-hot-toast";
 import { api } from "@/utils/api";
 
 type Product = {
@@ -128,6 +129,7 @@ export default function ProductListPage() {
       await fetchProducts();
     } catch (error) {
       console.error('Failed to delete product:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to delete product');
     }
   };
 
@@ -137,10 +139,13 @@ export default function ProductListPage() {
     
     const newStatus = product.status === 'active' ? 'inactive' : 'active';
     try {
-      await api.put(`/admin/product/${id}`, { ...product, status: newStatus });
+      // Only the status: resending the whole (populated) product would re-validate
+      // every other field and could fail on data this toggle never touched.
+      await api.put(`/admin/product/${id}`, { status: newStatus });
       await fetchProducts();
     } catch (error) {
       console.error('Failed to update status:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to update status');
     }
   };
 
@@ -254,6 +259,24 @@ export default function ProductListPage() {
           </div>
         </Card>
 
+        {/* Shortcuts for the two statuses. They drive the same `status` state the
+            dropdown above does, so the two controls can never disagree and the
+            existing fetch/pagination effects already handle the rest. Clicking
+            the selected one clears it, which is the "all products" view. */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          {(["active", "inactive"] as const).map((value) => (
+            <Button
+              key={value}
+              variant={status === value ? "default" : "outline"}
+              aria-pressed={status === value}
+              onClick={() => setStatus(status === value ? "" : value)}
+              className="flex-1 sm:flex-none uppercase"
+            >
+              {value} Products
+            </Button>
+          ))}
+        </div>
+
         <Card className="p-4">
           {loading ? (
             <div className="py-12 text-center text-muted-foreground">Loading products...</div>
@@ -285,7 +308,17 @@ export default function ProductListPage() {
                         {p.hasVariants === true ? (
                           <Link href={`/admin/product/${p._id}`}><Button className="bg-purple-600 hover:bg-purple-700 text-white" size="sm">Variants</Button></Link>
                         ) : ""}
-                        <Button className="bg-red-600 hover:bg-red-700 text-white" size="sm" onClick={() => handleDelete(p._id)}>Delete</Button>
+                        {/* Delete only moves a product to inactive, so there is
+                            nothing left to delete once it is already inactive. */}
+                        <Button
+                          className="bg-red-600 hover:bg-red-700 text-white"
+                          size="sm"
+                          disabled={p.status !== 'active'}
+                          title={p.status === 'active' ? undefined : 'Already inactive'}
+                          onClick={() => handleDelete(p._id)}
+                        >
+                          Delete
+                        </Button>
                       </div>
                     </td>
                   </tr>

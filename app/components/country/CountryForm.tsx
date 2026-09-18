@@ -112,15 +112,6 @@ export default function CountryForm({ open, onClose, onSave, country }: CountryF
     setSaving(true);
 
     try {
-      // Delete old image if marked for deletion
-      if (deletedPublicId) {
-        try {
-          await api.delete("/admin/general/delete-image", { publicId: deletedPublicId });
-        } catch (error) {
-          console.error("Failed to delete old image:", error);
-        }
-      }
-
       // Upload new flag if selected
       let flagUrl = formData.flagUrl;
       let publicId = formData.publicId;
@@ -147,6 +138,13 @@ export default function CountryForm({ open, onClose, onSave, country }: CountryF
         await api.put(`/admin/country/${country._id}`, payload);
       } else {
         await api.post("/admin/country", payload);
+      }
+
+      // The old flag is deleted only once the saved country no longer uses it.
+      if (deletedPublicId) {
+        api.delete("/admin/general/delete-image", { publicId: deletedPublicId }).catch((error) => {
+          console.error("Failed to delete old image:", error);
+        });
       }
 
       onSave();
