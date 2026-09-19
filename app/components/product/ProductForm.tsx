@@ -51,6 +51,19 @@ type VariantDraft = VariantFieldValues & {
   files: Record<Lang, File[]>;
 };
 
+/** A saved variant as the form edits it: its fields, and its images as "already there". */
+const variantDraft = (v: any): VariantDraft => ({
+  _id: v._id,
+  nameEnglish: v.nameEnglish || "",
+  nameArabic: v.nameArabic || "",
+  color: v.color || "#000000",
+  price: v.price == null ? "" : String(v.price),
+  mrp: v.mrp == null ? "" : String(v.mrp),
+  stock: v.stock == null ? "" : String(v.stock),
+  existing: { english: toImages(v.imageUrlEnglish), arabic: toImages(v.imageUrlArabic) },
+  files: { english: [], arabic: [] },
+});
+
 const emptyVariantDraft = (): VariantDraft => ({
   ...emptyVariantFields(),
   existing: { english: [], arabic: [] },
@@ -120,9 +133,23 @@ const variantFields = {
 const createVariantsSchema = z.array(
   z.object({
     ...variantFields,
-    nameEnglish: z.string().trim().min(1, "Enter the variant name").max(200, "Variant name must be 200 characters or fewer"),
-    nameArabic: z.string().trim().min(1, "Enter the Arabic variant name").max(200, "Arabic variant name must be 200 characters or fewer"),
+    nameEnglish: z.string().trim().max(200, "Variant name must be 200 characters or fewer").optional(),
+    nameArabic: z.string().trim().max(200, "Variant name must be 200 characters or fewer").optional(),
     imageUrlArabic: variantFields.imageUrlArabic.min(1, "Add at least one Arabic product image"),
+  })
+).min(1, "Add at least one variant").max(20, "Use 20 variants or fewer");
+
+// Editing sends the whole variant list back under the looser rules, because
+// variants saved earlier may not satisfy the create rules: some hold a CSS
+// colour name ("Red") rather than a hex value, which the storefront renders
+// correctly, and some have no Arabic images. Mirrors editVariantsSchema on the API.
+const editVariantsSchema = z.array(
+  z.object({
+    ...variantFields,
+    nameEnglish: z.string().trim().max(200, "Variant name must be 200 characters or fewer").optional(),
+    nameArabic: z.string().trim().max(200, "Variant name must be 200 characters or fewer").optional(),
+    color: z.string().trim().min(1, "Pick a colour").optional(),
+    imageUrlArabic: variantFields.imageUrlArabic.optional(),
   })
 ).min(1, "Add at least one variant").max(20, "Use 20 variants or fewer");
 
@@ -136,7 +163,7 @@ const editSchema = z.object({
     color: variantFields.color.optional(),
     imageUrlArabic: variantFields.imageUrlArabic.optional(),
   }).optional(),
-  variants: createVariantsSchema.optional(),
+  variants: editVariantsSchema.optional(),
 });
 
 // Creating asks for every field on the form, so none may be left blank.
@@ -201,16 +228,10 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
   const [errors, setErrors] = useState<Errors>({});
   const [categories, setCategories] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
-  // A new product is sold as a single item unless the admin says otherwise, so
-  // its price, stock and images are asked for up front.
-  const [hasVariants, setHasVariants] = useState(false);
-  const [variantId, setVariantId] = useState<string | null>(null);
-  const [variantForm, setVariantForm] = useState<VariantFieldValues>(emptyVariantFields());
-  const [existingImages, setExistingImages] = useState<Record<Lang, ProductImage[]>>({ english: [], arabic: [] });
-  const [newFiles, setNewFiles] = useState<Record<Lang, File[]>>({ english: [], arabic: [] });
-  // A product sold in several variants configures them here, during creation,
-  // instead of being saved first and given variants afterwards.
-  const [variants, setVariants] = useState<VariantDraft[]>([emptyVariantDraft()]);
+  // Every product is priced and pictured through its variants: one for a product
+  // sold as a single item, several when it comes in choices. The admin adds them
+  // with "Add Variant", so there is no separate mode to pick first.
+  const [variants, setVariants] = useState<VariantDraft[]>([]);
   // publicIds the saved variant referenced when the form loaded
   const loadedPublicIds = useRef<string[]>([]);
   const submitting = useRef(false);
@@ -240,24 +261,15 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
             descriptionArabic: (s.descriptionArabic || []).map((i: any) => ({ description: i?.description || "" })),
           })),
         });
-        setHasVariants(product.hasVariants === true);
+        const saved = Array.isArray(variants) ? variants : [];
+        // Images the saved variants reference now, so only the ones the admin
+        // actually removes get deleted from Cloudinary when the product is saved.
+        loadedPublicIds.current = saved
+          .flatMap((sv: any) => [...toImages(sv.imageUrlEnglish), ...toImages(sv.imageUrlArabic)])
+          .flatMap((img) => img.publicId || []);
 
-        // A single-item product keeps its price, stock and images on one variant.
-        const v = product.hasVariants === true ? undefined : (Array.isArray(variants) ? variants : [])[0];
-        if (v) {
-          const images = { english: toImages(v.imageUrlEnglish), arabic: toImages(v.imageUrlArabic) };
-          setVariantId(v._id);
-          setVariantForm({
-            nameEnglish: v.nameEnglish || "",
-            nameArabic: v.nameArabic || "",
-            color: v.color || "#000000",
-            price: v.price == null ? "" : String(v.price),
-            mrp: v.mrp == null ? "" : String(v.mrp),
-            stock: v.stock == null ? "" : String(v.stock),
-          });
-          setExistingImages(images);
-          loadedPublicIds.current = [...images.english, ...images.arabic].flatMap((img) => img.publicId || []);
-        }
+        // Whatever the product already has — one variant or several — loads here.
+        setVariants(saved.map(variantDraft));
       } catch (error) {
         setLoadError(error instanceof Error ? error.message : "Could not load this product.");
       } finally {
@@ -301,11 +313,6 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
   const handleCheckbox = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, checked } = e.target;
     setForm((s) => ({ ...s, [name]: checked }));
-  };
-
-  const setVariantField = (name: keyof VariantFieldValues, value: string) => {
-    setVariantForm((s) => ({ ...s, [name]: value }));
-    clearError(`variant.${name}`, "variant");
   };
 
   const addDescriptionSection = () => {
@@ -409,21 +416,6 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
     return { files: [...current.files, ...picked] };
   };
 
-  const handleVariantImageChange = (lang: Lang, e: React.ChangeEvent<HTMLInputElement>) => {
-    const picked = Array.from(e.target.files || []);
-    e.target.value = "";
-    const field = lang === "english" ? "variant.imageUrlEnglish" : "variant.imageUrlArabic";
-    const { files, error } = addFiles({ existing: existingImages[lang], files: newFiles[lang] }, picked, field);
-    if (error) {
-      setErrors((s) => ({ ...s, [field]: error }));
-      return;
-    }
-    setNewFiles((s) => ({ ...s, [lang]: files! }));
-    clearError(field, "variant");
-  };
-
-  const removeVariantFile = (lang: Lang, idx: number) =>
-    setNewFiles((s) => ({ ...s, [lang]: s[lang].filter((_, i) => i !== idx) }));
 
   // ---- the same three handlers, for one variant of a multi-variant product
   const patchVariant = (idx: number, patch: Partial<VariantDraft>) =>
@@ -465,10 +457,6 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
     setErrors((e) => Object.fromEntries(Object.entries(e).filter(([path]) => !path.startsWith("variants"))));
   };
 
-  const removeExistingImage = (lang: Lang, idx: number) => {
-    setExistingImages((s) => ({ ...s, [lang]: s[lang].filter((_, i) => i !== idx) }));
-  };
-
   const submit = async () => {
     if (submitting.current) return;
 
@@ -479,12 +467,9 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
       imageUrlEnglish: [...v.existing.english, ...v.files.english],
       imageUrlArabic: [...v.existing.arabic, ...v.files.arabic],
     });
-    const singleDraft: VariantDraft = { ...variantForm, existing: existingImages, files: newFiles };
-
     const found = validate({
       ...form,
-      variant: hasVariants ? undefined : withImages(singleDraft),
-      variants: hasVariants ? variants.map(withImages) : undefined,
+      variants: variants.map(withImages),
     }, productId ? "edit" : "create");
     if (Object.keys(found).length) {
       showErrors(found);
@@ -498,8 +483,7 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
     try {
       // Every variant's files go up in one batch, so a failure part-way rolls
       // all of them back rather than leaving orphans in Cloudinary.
-      const drafts = hasVariants ? variants : [singleDraft];
-      const pending = drafts.flatMap((v) => [...v.files.english, ...v.files.arabic]);
+      const pending = variants.flatMap((v) => [...v.files.english, ...v.files.arabic]);
       if (pending.length > 0) {
         setBusy("Uploading images...");
         uploaded = await uploadAll(pending);
@@ -509,14 +493,16 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
       // Hand each variant back the slice of uploads that belongs to it, in the
       // order they were queued above.
       let taken = 0;
-      const variantPayloads = drafts.map((v) => {
+      const variantPayloads = variants.map((v) => {
         const english = uploaded.slice(taken, taken + v.files.english.length);
         taken += v.files.english.length;
         const arabic = uploaded.slice(taken, taken + v.files.arabic.length);
         taken += v.files.arabic.length;
         return {
           ...(v._id && { _id: v._id }),
-          ...(hasVariants && { nameEnglish: v.nameEnglish, nameArabic: v.nameArabic }),
+          // Blank names are left out, so the API falls back to the product's.
+          ...(v.nameEnglish.trim() && { nameEnglish: v.nameEnglish }),
+          ...(v.nameArabic.trim() && { nameArabic: v.nameArabic }),
           color: v.color,
           // Sent as typed. The API coerces a non-empty string itself, and
           // Number("") is 0 — which would turn an empty stock field into a
@@ -529,15 +515,9 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
         };
       });
 
-      const payload = {
-        ...form,
-        hasVariants,
-        // Either shape is saved together with the product, so the API can reject
-        // the whole thing instead of storing half of it.
-        ...(hasVariants
-          ? { variants: variantPayloads }
-          : { variant: { ...(variantId && { _id: variantId }), ...variantPayloads[0] } }),
-      };
+      // Saved together with the product, so the API can reject the whole thing
+      // instead of storing half of it. hasVariants is derived there from the count.
+      const payload = { ...form, variants: variantPayloads };
 
       if (productId) {
         await api.put(`/admin/product/${productId}`, payload);
@@ -546,15 +526,12 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
       }
 
       // Only now is it safe to drop images the admin removed: the saved variants no longer use them.
-      const kept = new Set(drafts.flatMap((v) => [...v.existing.english, ...v.existing.arabic]).map((img) => img.publicId));
+      const kept = new Set(variants.flatMap((v) => [...v.existing.english, ...v.existing.arabic]).map((img) => img.publicId));
       deleteImages(loadedPublicIds.current.filter((id) => !kept.has(id)));
 
+      const count = variantPayloads.length;
       toast.success(
-        productId
-          ? "Product updated"
-          : hasVariants
-            ? `Product created with ${variantPayloads.length} variant${variantPayloads.length > 1 ? "s" : ""}`
-            : "Product created"
+        productId ? "Product updated" : `Product created with ${count} variant${count > 1 ? "s" : ""}`
       );
       router.push("/admin/product");
     } catch (error) {
@@ -751,75 +728,45 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
         ))}
       </div>
 
-      <div className="rounded-md border p-3">
-        <label className="flex items-center gap-2 text-sm font-medium">
-          <input
-            type="checkbox"
-            name="hasVariants"
-            checked={hasVariants}
-            onChange={(e) => {
-              setHasVariants(e.target.checked);
-              setErrors((s) => Object.fromEntries(Object.entries(s).filter(([path]) => !path.startsWith("variant"))));
-            }}
-          />
-          Has Variants (multiple)
-        </label>
-      </div>
-
-      {!hasVariants ? (
-        <div className="space-y-4 rounded-md border p-4">
-          <div className={cn("text-sm font-medium", hasError(errors, "variant") && "text-red-600")}>Product Details</div>
-          <VariantFields
-            prefix="variant"
-            idPrefix="variant"
-            values={variantForm}
-            onChange={setVariantField}
-            existing={existingImages}
-            files={newFiles}
-            onFiles={handleVariantImageChange}
-            onRemoveExisting={removeExistingImage}
-            onRemoveFile={removeVariantFile}
-            errors={errors}
-            disabled={!!busy}
-          />
-        </div>
-      ) : (
-        <div className="space-y-4 rounded-md border p-4">
-          <div className="flex items-center justify-between">
-            <div className={cn("text-sm font-medium", hasError(errors, "variants") && "text-red-600")}>
-              Variants ({variants.length})
-            </div>
-            <Button
-              type="button"
-              size="sm"
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={addVariant}
-              disabled={variants.length >= 20}
-            >
-              <Plus className="mr-1 h-4 w-4" />
-              Add Variant
-            </Button>
+      {/* Variants. A product is priced and pictured through them: one for a
+          product sold as a single item, several when it comes in choices. */}
+      <div className="space-y-4 rounded-md border p-4">
+        <div className="flex items-center justify-between">
+          <div className={cn("text-sm font-medium", hasError(errors, "variants") && "text-red-600")}>
+            Product Details{variants.length > 0 ? ` (${variants.length} variant${variants.length > 1 ? "s" : ""})` : ""}
           </div>
-          <FieldError errors={errors} name="variants" />
+          <Button
+            type="button"
+            size="sm"
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+            onClick={addVariant}
+            disabled={variants.length >= 20}
+          >
+            <Plus className="mr-1 h-4 w-4" />
+            Add Variant
+          </Button>
+        </div>
 
-          {variants.map((variant, idx) => (
-            <div key={idx} className="space-y-4 rounded-md border p-3">
+        {variants.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No variants yet. Add one for the price, stock and images of this product.
+          </p>
+        ) : (
+          variants.map((variant, idx) => (
+            <div key={variant._id || `new-${idx}`} className="space-y-4 rounded-md border p-3">
               <div className="flex items-center justify-between">
                 <div className={cn("text-sm font-medium", hasError(errors, `variants.${idx}`) && "text-red-600")}>
                   Variant {idx + 1}
                 </div>
-                {variants.length > 1 && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="bg-red-600 hover:bg-red-700 text-white"
-                    onClick={() => removeVariant(idx)}
-                  >
-                    Remove
-                  </Button>
-                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  onClick={() => removeVariant(idx)}
+                >
+                  Remove Variant
+                </Button>
               </div>
-              {/* The same block the single-item product uses, so the two cannot drift. */}
               <VariantFields
                 prefix={`variants.${idx}`}
                 idPrefix={`variant-${idx}`}
@@ -835,9 +782,25 @@ export default function ProductForm({ productId }: { productId?: string } = {}) 
                 disabled={!!busy}
               />
             </div>
-          ))}
-        </div>
-      )}
+          ))
+        )}
+        <FieldError errors={errors} name="variants" />
+
+        {variants.length > 0 && (
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={addVariant}
+              disabled={variants.length >= 20}
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Add Variant
+            </Button>
+          </div>
+        )}
+      </div>
 
       <div className="flex items-center gap-6">
         <label className="flex items-center gap-2 text-sm">

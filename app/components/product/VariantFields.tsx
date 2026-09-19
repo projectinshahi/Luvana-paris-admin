@@ -132,6 +132,8 @@ export function ImagePicker({
  * Purely presentational, so both cases share this and the error paths it
  * renders line up with what the API reports.
  */
+/** Blank names inherit the product's, so they are only worth filling in to
+ *  label a choice on the storefront. */
 export function VariantFields({
   prefix,
   values,
@@ -167,7 +169,7 @@ export function VariantFields({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <FieldLabel errors={errors} name={path("nameEnglish")} htmlFor={`${idPrefix}-nameEnglish`}>
-              Variant Name (English)
+              Variant Name (English) <span className="font-normal">- optional</span>
             </FieldLabel>
             <Input
               id={`${idPrefix}-nameEnglish`}
@@ -181,7 +183,7 @@ export function VariantFields({
           </div>
           <div>
             <FieldLabel errors={errors} name={path("nameArabic")} htmlFor={`${idPrefix}-nameArabic`}>
-              Variant Name (Arabic)
+              Variant Name (Arabic) <span className="font-normal">- optional</span>
             </FieldLabel>
             <Input
               id={`${idPrefix}-nameArabic`}
